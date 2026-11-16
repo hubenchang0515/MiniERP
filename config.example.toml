@@ -1,0 +1,10 @@
+[server]
+addr = "0.0.0.0:8080"
+
+[data]
+dir = "./data"
+
+[auth]
+jwt_ttl = "168h"
+# 正式部署请通过 MINIERP_JWT_SECRET 设置至少 32 字节的随机密钥。
+# jwt_secret = "your-random-secret"

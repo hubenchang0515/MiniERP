@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>MiniERP</title>
+  <style>
+    path { fill: #285741; }
+    @media (prefers-color-scheme: dark) { path { fill: #9adbb7; } }
+  </style>
+  <path fill-rule="evenodd" d="M32 2 60 18 32 34 4 18Zm0 9 12 7-12 7-12-7Z"/>
+  <path fill-rule="evenodd" opacity=".72" d="m4 24 24 14v24L4 48Zm7 12v8l10 5.8v-8Z"/>
+  <path fill-rule="evenodd" opacity=".9" d="m36 38 24-14v24L36 62Zm7 3.8v8L53 44v-8Z"/>
+</svg>

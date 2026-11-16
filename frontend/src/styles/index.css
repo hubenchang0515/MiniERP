@@ -1,0 +1,153 @@
+@import "tailwindcss";
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", "Microsoft YaHei", sans-serif;
+  --shadow-point:
+    0 0 4px 1px currentColor,
+    0 0 9px 3px color-mix(in srgb, currentColor 45%, transparent);
+}
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-hover: var(--hover);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-danger: var(--danger);
+  --color-field: var(--field);
+  --color-field-border: var(--field-border);
+  --color-nav-active: var(--nav-active);
+  --color-nav-ink: var(--nav-ink);
+  --color-error-bg: var(--error-bg);
+  --color-error-border: var(--error-border);
+  --color-error-ink: var(--error-ink);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-success-ink: var(--success-ink);
+  --color-tag-bg: var(--tag-bg);
+  --color-tag-border: var(--tag-border);
+  --color-tag-ink: var(--tag-ink);
+  --color-table-head: var(--table-head);
+  --color-row-hover: var(--row-hover);
+  --color-resource-surface: var(--resource-surface);
+  --color-resource-border: var(--resource-border);
+  --color-resource-ink: var(--resource-ink);
+  --color-resource-track: var(--resource-track);
+}
+:root {
+  color-scheme: light;
+  --canvas: #f6f7f9;
+  --surface: #fff;
+  --subtle: #fafbf9;
+  --hover: #f0f4f1;
+  --ink: #253c34;
+  --muted: #748077;
+  --line: #dce3df;
+  --accent: #285741;
+  --primary: #285741;
+  --primary-hover: #1d4432;
+  --danger: #a43d39;
+  --field: #fff;
+  --field-border: #dce3d8;
+  --nav-active: #eaf1eb;
+  --nav-ink: #285741;
+  --error-bg: #fff0ee;
+  --error-border: #f0d5d1;
+  --error-ink: #a13833;
+  --success-bg: #eaf5ee;
+  --success-border: #c9e1d1;
+  --success-ink: #2e6945;
+  --tag-bg: #f0f5f1;
+  --tag-border: #dce7df;
+  --tag-ink: #55705e;
+  --table-head: #f8faf7;
+  --row-hover: #fcfdfb;
+  --resource-surface: #f9fbfc;
+  --resource-border: #cce7ed;
+  --resource-ink: #344963;
+  --resource-track: #d9dee3;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #101722;
+  --surface: #192332;
+  --subtle: #131d29;
+  --hover: #28364a;
+  --ink: #e4ebf4;
+  --muted: #a0aec0;
+  --line: #344354;
+  --accent: #9adbb7;
+  --primary: #2e6c50;
+  --primary-hover: #367e5d;
+  --danger: #ad4946;
+  --field: #121c28;
+  --field-border: #435166;
+  --nav-active: #233d34;
+  --nav-ink: #a9e6c3;
+  --error-bg: #352129;
+  --error-border: #67414a;
+  --error-ink: #ffb5b5;
+  --success-bg: #1b352c;
+  --success-border: #385c49;
+  --success-ink: #a5e2ba;
+  --tag-bg: #253b32;
+  --tag-border: #3b5748;
+  --tag-ink: #b5dfc5;
+  --table-head: #202c3c;
+  --row-hover: #202e3f;
+  --resource-surface: #192332;
+  --resource-border: #344b60;
+  --resource-ink: #dce7f5;
+  --resource-track: #3c495b;
+}
+
+/* Theme color tokens; component styles use Tailwind utilities. */
+:root[data-accent="blue"] {
+  --brand: #1d4ed8;
+  --brand-hover: #1e40af;
+  --brand-light: #93c5fd;
+  --brand-dark: #1d4ed8;
+  --brand-dark-hover: #2563eb;
+}
+:root[data-accent="purple"] {
+  --brand: #7c3aed;
+  --brand-hover: #6d28d9;
+  --brand-light: #c4b5fd;
+  --brand-dark: #7c3aed;
+  --brand-dark-hover: #8b5cf6;
+}
+:root[data-accent="orange"] {
+  --brand: #c2410c;
+  --brand-hover: #9a3412;
+  --brand-light: #fdba74;
+  --brand-dark: #c2410c;
+  --brand-dark-hover: #d4470d;
+}
+:root[data-accent="rose"] {
+  --brand: #be185d;
+  --brand-hover: #9d174d;
+  --brand-light: #f9a8d4;
+  --brand-dark: #be185d;
+  --brand-dark-hover: #d51b69;
+}
+:root[data-accent]:not([data-accent="green"]) {
+  --accent: var(--brand);
+  --primary: var(--brand);
+  --primary-hover: var(--brand-hover);
+  --nav-ink: var(--accent);
+  --nav-active: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  --hover: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  --tag-bg: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  --tag-border: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  --tag-ink: var(--accent);
+}
+:root[data-theme="dark"][data-accent]:not([data-accent="green"]) {
+  --accent: var(--brand-light);
+  --primary: var(--brand-dark);
+  --primary-hover: var(--brand-dark-hover);
+}
