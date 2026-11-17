@@ -6,6 +6,7 @@ import {
   LogOut,
   Menu,
   KeyRound,
+  Cpu,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../app/AuthContext";
@@ -40,6 +41,10 @@ export default function AppLayout() {
           <NavLink className={navClass} to="/dashboard">
             <LayoutDashboard size={18} />
             工作台
+          </NavLink>
+          <NavLink className={navClass} to="/ai">
+            <Cpu size={18} />
+            AI 资源
           </NavLink>
           {a.can("users:read") && (
             <NavLink className={navClass} to="/users">

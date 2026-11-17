@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { aiPages } from "../features/ai/paths";
 export function safeReturnTo(value: string | null) {
   if (
     !value ||
@@ -32,13 +33,21 @@ export function RootRedirect() {
 export function authorizedReturnTo(
   value: string | null,
   permissions: readonly string[],
+  systemAdmin = false,
 ) {
   const target = safeReturnTo(value);
   const path =
     decodeURIComponent(
       new URL(target, "https://minierp.local").pathname,
     ).replace(/\/+$/, "") || "/";
-  if (["/", "/dashboard", "/account/password"].includes(path)) return target;
+  if (
+    ["/", "/dashboard", "/account/password", "/ai", "/ai/allocations"].includes(
+      path,
+    )
+  )
+    return target;
+  if (aiPages.some((page) => page.path === path))
+    return systemAdmin ? target : "/dashboard";
   const routes = [
     [/^\/users$/, "users:read"],
     [/^\/users\/(new|\d+\/edit)$/, "users:manage"],
@@ -62,6 +71,7 @@ export function PublicGuard({ setup = false }: { setup?: boolean }) {
         to={authorizedReturnTo(
           new URLSearchParams(location.search).get("returnTo"),
           a.user.permissions,
+          a.user.roles?.some((role) => role.system) ?? false,
         )}
       />
     );

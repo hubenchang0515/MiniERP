@@ -3,6 +3,7 @@ set -euo pipefail
 usage() {
   echo "用法: ./scripts/build.sh [--target <系统/架构>]"
   echo "默认仅构建当前主机平台。例如: --target linux/amd64 或 --target darwin/arm64"
+  echo "请先运行 ./scripts/install-deps.sh 安装依赖；构建不会自动安装依赖。"
 }
 target=""
 target_set=false
@@ -35,12 +36,18 @@ if [ "$os" = windows ]; then ext=.exe; fi
 echo "构建目标: $target"
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root/frontend"
-npm ci
+if [ ! -d node_modules ]; then
+  echo "缺少前端依赖，请先运行 ./scripts/install-deps.sh。" >&2
+  exit 1
+fi
 npm run build
 static="$root/backend/internal/web/static"
 find "$static" -mindepth 1 -maxdepth 1 ! -name .keep ! -name placeholder.html -exec rm -rf -- {} +
 cp -R dist/. "$static/"
 mkdir -p "$root/release"
 cd "$root/backend"
-CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags '-s -w' -o "$root/release/minierp-$os-$arch$ext" ./cmd/minierp
+if ! GOPROXY=off CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -mod=readonly -trimpath -ldflags '-s -w' -o "$root/release/minierp-$os-$arch$ext" ./cmd/minierp; then
+  echo "Go 构建失败；如缺少依赖，请先运行 ./scripts/install-deps.sh。" >&2
+  exit 1
+fi
 echo "已构建 minierp-$os-$arch$ext"

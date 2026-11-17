@@ -35,9 +35,16 @@ export default function AuthForm({ setup = false }: { setup?: boolean }) {
             }
           : {}),
       });
-      navigate(authorizedReturnTo(params.get("returnTo"), user.permissions), {
-        replace: true,
-      });
+      navigate(
+        authorizedReturnTo(
+          params.get("returnTo"),
+          user.permissions,
+          user.roles?.some((role) => role.system) ?? false,
+        ),
+        {
+          replace: true,
+        },
+      );
     } catch (e) {
       if (setup && e instanceof ApiError && e.status === 409) {
         await a.reload();

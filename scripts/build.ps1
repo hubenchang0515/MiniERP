@@ -10,6 +10,7 @@ function Check-Exit { if ($LASTEXITCODE -ne 0) { throw "构建失败，退出码
 if ($Help) {
     Write-Output '用法: .\scripts\build.ps1 [-Target <系统/架构>]'
     Write-Output '默认仅构建当前主机平台。例如: -Target linux/amd64 或 -Target darwin/arm64'
+    Write-Output '请先运行 .\scripts\install-deps.ps1 安装依赖；构建不会自动安装依赖。'
     return
 }
 if (-not $PSBoundParameters.ContainsKey('Target')) {
@@ -27,10 +28,13 @@ $extension = if ($targetOS -eq 'windows') { '.exe' } else { '' }
 Write-Host "构建目标: $Target"
 
 Push-Location $root
-$oldGOOS = $env:GOOS; $oldGOARCH = $env:GOARCH; $oldCGO = $env:CGO_ENABLED
+$oldGOOS = $env:GOOS; $oldGOARCH = $env:GOARCH; $oldCGO = $env:CGO_ENABLED; $oldProxy = $env:GOPROXY
 try {
+    if (-not (Test-Path -LiteralPath (Join-Path $root 'frontend/node_modules') -PathType Container)) {
+        throw '缺少前端依赖，请先运行 .\scripts\install-deps.ps1。'
+    }
     Push-Location frontend
-    try { npm ci; Check-Exit; npm run build; Check-Exit } finally { Pop-Location }
+    try { npm run build; Check-Exit } finally { Pop-Location }
     $static = Join-Path $root 'backend/internal/web/static'
     # 仅清理已确认位于本项目中的生成目录，保留编译占位文件。
     $resolved = [IO.Path]::GetFullPath($static)
@@ -41,9 +45,11 @@ try {
     Push-Location backend
     try {
         $env:CGO_ENABLED = '0'
+        $env:GOPROXY = 'off'
         $env:GOOS = $targetOS; $env:GOARCH = $targetArch
         $output = Join-Path $root "release/minierp-$targetOS-$targetArch$extension"
-        go build -trimpath -ldflags '-s -w' -o $output ./cmd/minierp; Check-Exit
+        go build -mod=readonly -trimpath -ldflags '-s -w' -o $output ./cmd/minierp
+        if ($LASTEXITCODE -ne 0) { throw 'Go 构建失败；如缺少依赖，请先运行 .\scripts\install-deps.ps1。' }
         Write-Host "已构建 $output"
     } finally { Pop-Location }
-} finally { $env:GOOS = $oldGOOS; $env:GOARCH = $oldGOARCH; $env:CGO_ENABLED = $oldCGO; Pop-Location }
+} finally { $env:GOOS = $oldGOOS; $env:GOARCH = $oldGOARCH; $env:CGO_ENABLED = $oldCGO; $env:GOPROXY = $oldProxy; Pop-Location }

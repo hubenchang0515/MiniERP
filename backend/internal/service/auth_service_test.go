@@ -62,7 +62,7 @@ func TestBootstrapConcurrent(t *testing.T) {
 func TestLoginAndTokens(t *testing.T) {
 	s := newService(t)
 	session := bootstrap(t, s)
-	if len(session.User.Permissions) != 4 {
+	if len(session.User.Permissions) != len(model.Permissions) {
 		t.Fatal(session)
 	}
 	var stored model.User

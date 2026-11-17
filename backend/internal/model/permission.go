@@ -11,4 +11,5 @@ var Permissions = []Permission{
 	{"users:manage", "管理用户", "创建、编辑、停用用户及重设密码，包含查看权限"},
 	{"roles:read", "查看角色", "查看角色与权限清单"},
 	{"roles:manage", "管理角色", "创建、编辑和删除角色，包含查看权限"},
+	{"ai:use", "使用 AI", "自行生成密钥并调用 AI 服务"},
 }

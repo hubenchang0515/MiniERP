@@ -17,7 +17,7 @@ func TestMigrateAndReopen(t *testing.T) {
 	}
 	var n int64
 	db.Model(&model.Permission{}).Count(&n)
-	if n != 4 {
+	if n != int64(len(model.Permissions)) {
 		t.Fatalf("permissions = %d", n)
 	}
 	u := model.User{Username: "saved", Enabled: true}

@@ -22,6 +22,12 @@ export function Textarea({
 }: ComponentPropsWithoutRef<"textarea">) {
   return <textarea {...props} className={`${fieldClass} ${className}`} />;
 }
+export function Select({
+  className = "",
+  ...props
+}: ComponentPropsWithoutRef<"select">) {
+  return <select {...props} className={`${fieldClass} ${className}`} />;
+}
 export function FormField({
   label,
   required,

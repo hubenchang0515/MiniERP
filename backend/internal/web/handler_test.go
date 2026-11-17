@@ -12,7 +12,7 @@ func TestStaticAndSPAFallback(t *testing.T) {
 	r := gin.New()
 	r.NoRoute(Handler())
 	_, indexErr := fs.Stat(files, "static/index.html")
-	for _, path := range []string{"/", "/users/7/edit", "/roles"} {
+	for _, path := range []string{"/", "/users/7/edit", "/roles", "/ai/providers", "/ai/provider-keys", "/ai/models", "/ai/allocations"} {
 		req := httptest.NewRequest("GET", path, nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)

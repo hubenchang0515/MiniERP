@@ -4,6 +4,7 @@ import { useAuth } from "../../app/AuthContext";
 import { PageTitle } from "../../components/Shared";
 import SystemResourcesPanel from "./SystemResourcesPanel";
 const permissionNames: Record<string, string> = {
+  "ai:use": "使用 AI",
   "users:read": "查看用户",
   "users:manage": "管理用户",
   "roles:read": "查看角色",

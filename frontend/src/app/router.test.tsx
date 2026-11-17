@@ -37,6 +37,16 @@ describe("returnTo", () => {
       "/account/password",
     );
   });
+  it("restores AI child pages after login according to account type", () => {
+    for (const path of ["/ai/providers", "/ai/provider-keys", "/ai/models"]) {
+      expect(authorizedReturnTo(path, ["ai:use"], true)).toBe(path);
+      expect(authorizedReturnTo(path, ["ai:use"])).toBe("/dashboard");
+    }
+    expect(authorizedReturnTo("/ai/allocations", [])).toBe("/ai/allocations");
+    expect(authorizedReturnTo("/ai/provider-keys?page=2", [], true)).toBe(
+      "/ai/provider-keys?page=2",
+    );
+  });
 });
 describe("route permissions", () => {
   beforeEach(() => {

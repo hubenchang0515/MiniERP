@@ -15,6 +15,7 @@ type Service struct {
 	DB        *gorm.DB
 	Config    config.Config
 	resources resourceMonitor
+	ai        AIState
 }
 type claims struct {
 	Version uint `json:"v"`

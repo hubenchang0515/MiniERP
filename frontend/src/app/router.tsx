@@ -17,6 +17,7 @@ import UsersPage from "../features/users/UsersPage";
 import UserFormPage from "../features/users/UserFormPage";
 import RolesPage from "../features/roles/RolesPage";
 import RoleFormPage from "../features/roles/RoleFormPage";
+import { aiRoutes } from "../features/ai/routes";
 function StatusPage({ forbidden = false }: { forbidden?: boolean }) {
   return (
     <ResultState
@@ -48,6 +49,7 @@ export default function AppRoutes() {
       <Route element={<ProtectedGuard />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
+          {aiRoutes}
           <Route path="/account/password" element={<ChangePasswordPage />} />
           <Route element={<PermissionGuard code="users:read" />}>
             <Route path="/users" element={<UsersPage />} />
