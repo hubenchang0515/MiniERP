@@ -255,7 +255,9 @@ curl http://localhost:8080/ai/v1/chat/completions \
 
 外部 KEY 使用 AES-GCM 加密保存，主密钥首次使用时生成在数据目录的 `.ai-master-key` 文件中，与 JWT 密钥独立。备份或迁移时需一并保留此文件与数据库；丢失主密钥后，原外部 KEY 无法解密，需要重新录入。访问密钥使用随机值，仅保存 SHA-256 摘要。接口不返回加密内容或完整外部 KEY，也不记录提示词、生成内容和原始上游错误正文。
 
-每次代理请求都检查 KEY、所属用户、目标供应商和模型映射的启用状态，以及用户当前角色是否仍包含 `ai:use`。撤回角色权限或移除用户角色后，已有 KEY 的新调用和重新生成均被拒绝；重新授予权限后，未撤销的 KEY 恢复可用。没有 AI 权限的用户仍可查看和撤销自己的 KEY。首次初始化时为系统管理员配置全部权限，普通角色的权限由管理员分配。全局最多并发转发 32 个请求，超限返回 429；单次最长 2 分钟，请求体上限 8 MiB。统计记录的是通过鉴权和模型校验的转发尝试（包括上游失败），本地模型列表和被拦截的请求不计入，目前不做 Token 用量计费、余额或用户配额管理。供应商、模型映射和 KEY 列表使用通用分页格式，默认每页 20 条、最大 100 条，前端每页 10 条。
+每次代理请求都检查 KEY、所属用户、目标供应商和模型映射的启用状态，以及用户当前角色是否仍包含 `ai:use`。撤回角色权限或移除用户角色后，已有 KEY 的新调用和重新生成均被拒绝；重新授予权限后，未撤销的 KEY 恢复可用。没有 AI 权限的用户仍可查看和撤销自己的 KEY。首次初始化时为系统管理员配置全部权限，普通角色的权限由管理员分配。全局默认最多并发转发 32 个请求，可用 `ai.max_concurrent_requests` 调整；超限返回 429 和 `Retry-After: 1`，不无限排队。默认等待上游首个响应或连续无数据传输超过 2 分钟时中止，可用 `ai.idle_timeout` 调整；持续输出的请求没有固定总时限。客户端停止读取时，下行写入也受此超时约束，避免长期占用并发名额。请求体上限 8 MiB。统计按秒批量落盘，记录通过鉴权和模型校验的转发尝试（包括上游失败），本地模型列表和被拦截的请求不计入，目前不做 Token 用量计费、余额或用户配额管理。供应商、模型映射和 KEY 列表使用通用分页格式，默认每页 20 条、最大 100 条，前端每页 10 条。
+
+额度耗尽或限流响应会向调用方返回经过校验的 `Retry-After`；后续请求因所有密钥处于冷却期而收到 503 时，也会返回距最早可试用时间的等待秒数。客户端应遵守等待提示并采用退避重试。流式响应设置 `X-Accel-Buffering: no`，供支持此响应头的反向代理关闭缓冲；代理不额外生成 SSE 事件。
 
 ## 配置
 
@@ -268,6 +270,8 @@ curl http://localhost:8080/ai/v1/chat/completions \
 | 数据目录 | `-d`、`--data-dir` | `MINIERP_DATA_DIR` | `data.dir` | `./data`；数据库文件为其中的 `mini-erp.db` |
 | JWT 密钥 | `-s`、`--jwt-secret` | `MINIERP_JWT_SECRET` | `auth.jwt_secret` | `minierp-insecure-default-secret-change-me` |
 | JWT 有效期 | `-t`、`--jwt-ttl` | `MINIERP_JWT_TTL` | `auth.jwt_ttl` | `168h`（7 天） |
+| AI 无数据超时 | `--ai-idle-timeout` | `MINIERP_AI_IDLE_TIMEOUT` | `ai.idle_timeout` | `2m`；持续输出不会因总时长被中断 |
+| AI 并发上限 | `--ai-max-concurrent-requests` | `MINIERP_AI_MAX_CONCURRENT_REQUESTS` | `ai.max_concurrent_requests` | `32`；超限返回 429 |
 
 运行 `minierp --help` 可查看短参数和长参数。未设置 `MINIERP_JWT_SECRET` 时，每次启动都会打印警告和实际密钥来源，但不会打印密钥本身；正式部署建议设置该环境变量。命令行参数可能出现在系统进程列表里，因此密钥最好从环境变量提供。
 
@@ -283,6 +287,10 @@ dir = "./data"
 [auth]
 jwt_ttl = "168h"
 # jwt_secret = "至少 32 字节的随机密钥；正式环境优先使用环境变量"
+
+[ai]
+idle_timeout = "2m"
+max_concurrent_requests = 32
 ```
 
 Vite 开发服务器默认监听 `5173`，并把 `/api` 转发给 `http://127.0.0.1:8080`；可用 `VITE_API_TARGET` 修改转发目标。开发脚本会启动 Go 和 Vite 两个进程，便于热更新；发布后的单文件程序只启动 Go 服务。
@@ -290,6 +298,18 @@ Vite 开发服务器默认监听 `5173`，并把 `/api` 转发给 `http://127.0.
 ## 数据库、测试和构建
 
 当前处于早期开发阶段，仅使用 GORM `AutoMigrate` 从空库建立当前表结构，并初始化权限清单，不提供旧数据迁移或兼容逻辑。表结构发生不兼容变化后，请先停止程序，删除数据目录中的 `mini-erp.db`（以及同名的 `-wal`、`-shm` 文件，如存在），再重启并重新初始化管理员账号。
+
+数据库采用 WAL 模式，并分离读写连接：写连接保持单连接串行提交，API 查询使用最多 8 个独立的只读连接，避免统计更新或账号修改阻塞其他页面读取。JWT 和用户访问密钥的权限检查均合并为一条关联查询，每次请求直接读取已提交数据，不缓存权限，因此停用账号、撤回角色权限和撤销密钥仍立即生效。超过 200ms 的 SQL 会记录警告，日志只包含参数占位符，不输出密钥、密码等参数值。
+
+AI 调用次数和最近使用时间先合并到内存，每秒批量落盘，程序正常退出时会等待正在处理的请求并刷新剩余统计。这些统计不参与计费或权限判断，页面读到的持久化统计通常最多滞后约一秒；数据库忙或异常时保留批次重试，异常退出可能丢失尚未落盘的少量统计。密钥额度、启用状态和权限变更仍同步保存。供应商调度锁按供应商隔离，成功的正常请求不会为统计写入等待数据库。
+
+代理响应的 `Server-Timing` 包含 `gateway`（本地鉴权、查询、选钥等开销）、`upstream_headers`（等待上游响应头及重试错误正文的累计时间）和 `attempts`（上游尝试次数），便于区分本地和上游耗时。它不包含响应头发出后等待流式首个 token 的时间。上游使用共享连接池，每台主机最多保留 32 个空闲连接，减少并发后的重复 TCP/TLS 握手。
+
+AI 代理使用无数据传输超时，持续输出不会被固定的 2 分钟总时限切断。每次请求返回独立的 `X-Request-ID`，响应中断时，日志 `ai proxy stopped` 会记录对应的 `request_id`、阶段、原因和耗时：`client_canceled` 表示客户端取消，`gateway_idle_timeout` 表示等待上游数据超时，`downstream_write_timeout` 表示客户端长时间不读取，`upstream_truncated` / `upstream_read_failed` 表示上游正文传输中断，`response_write_failed` 表示其他下行写入失败。已开始发送的响应会中止连接或流，不追加 JSON、不自动重放请求；中止信号不会再打印整段请求头。响应头发出前触发无数据超时则返回 HTTP 504。
+
+并发回归使用本地模拟供应商，覆盖 HTTP/1 和同一 HTTP/2 连接上的 32 路流式请求、33 路时的限流响应、取消后名额释放、其他请求继续输出、持续输出超过多个空闲超时周期、上游无响应、客户端不读取，以及冷却期等待提示。可运行 `go test ./internal/transport/http/handler -run 'TestAIProxyConcurrent|TestAIProxyIdle|TestAIProxyCooldown|TestAIProxyClientNotReading' -count=1 -v`，不会调用真实供应商。
+
+本机临时数据库和即时响应模拟上游的一次对比中：单客户端请求中位耗时从约 2.7ms 降到 1.0ms；16 个并发客户端从约 41.2ms 降到 5.0ms，P95 从约 54.9ms 降到 9.2ms。持有写事务 300ms 时，用户列表读取从等待约 300.7ms 变为约 1.1ms。每次正常代理请求从 9 次读取、2 次同步统计写入，减少到 3 次读取且无同步统计写入。上述为本地开销对比，不代表真实供应商的生成速度。可运行 `go test ./internal/transport/http/handler -run TestLatencyDiagnostic -count=1 -v` 复测，不会调用真实供应商。
 
 SQLite 使用纯 Go 驱动 `github.com/libtnb/sqlite`，避免 CGO 和额外的 C 编译器要求。构建脚本设置 `CGO_ENABLED=0`，每次只生成一个目标的程序，默认使用当前主机的系统和架构。通过目标参数可交叉编译 Windows x64（`windows/amd64`）、Linux x64（`linux/amd64`）、macOS Intel（`darwin/amd64`）或 macOS Apple Silicon（`darwin/arm64`）等目标；具体支持范围还取决于所用驱动和系统资源采集库。
 

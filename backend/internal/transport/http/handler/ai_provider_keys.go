@@ -11,7 +11,7 @@ func (h *Handler) AIProviderKeys(c *gin.Context) {
 	if !ok {
 		return
 	}
-	q := h.Service.DB.Model(&model.AIProviderKey{}).Table(h.Service.DB.NamingStrategy.TableName("AIProviderKey") + " AS provider_keys").Joins("JOIN ai_resources ON ai_resources.id = provider_keys.resource_id")
+	q := h.Service.ReadDB().WithContext(c.Request.Context()).Model(&model.AIProviderKey{}).Table(h.Service.DB.NamingStrategy.TableName("AIProviderKey") + " AS provider_keys").Joins("JOIN ai_resources ON ai_resources.id = provider_keys.resource_id")
 	if text := c.Query("q"); text != "" {
 		q = q.Where("provider_keys.name LIKE ? OR ai_resources.name LIKE ?", "%"+text+"%", "%"+text+"%")
 	}

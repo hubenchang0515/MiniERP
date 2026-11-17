@@ -10,7 +10,7 @@ import (
 
 func Router(s *service.Service) *gin.Engine {
 	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery())
+	r.Use(gin.Logger(), middleware.Recovery())
 	r.SetTrustedProxies(nil)
 	r.Use(func(c *gin.Context) {
 		c.Header("X-Content-Type-Options", "nosniff")

@@ -8,3 +8,8 @@ dir = "./data"
 jwt_ttl = "168h"
 # 正式部署请通过 MINIERP_JWT_SECRET 设置至少 32 字节的随机密钥。
 # jwt_secret = "your-random-secret"
+
+[ai]
+# 持续返回内容不受总时长限制；等待首个响应或后续数据超过此时长才中止。
+idle_timeout = "2m"
+max_concurrent_requests = 32

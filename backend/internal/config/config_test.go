@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"flag"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +19,7 @@ func TestDefaultsAndHelp(t *testing.T) {
 	}
 	_ = c
 	c, err = Load(nil, func(string) string { return "" }, &out)
-	if err != nil || c.Addr != "0.0.0.0:8080" || c.JWTTTL != 168*time.Hour || !filepath.IsAbs(c.DataDir) {
+	if err != nil || c.Addr != "0.0.0.0:8080" || c.JWTTTL != 168*time.Hour || !filepath.IsAbs(c.DataDir) || c.AIIdleTimeout != 2*time.Minute || c.AIMaxConcurrentRequests != 32 {
 		t.Fatalf("defaults: %+v %v", c, err)
 	}
 	_, err = Load([]string{"--help"}, func(string) string { return "" }, &out)
@@ -27,6 +28,61 @@ func TestDefaultsAndHelp(t *testing.T) {
 	}
 	if !bytes.Contains(out.Bytes(), []byte("jwt-secret")) {
 		t.Fatal("help missing options")
+	}
+}
+
+func TestAIConfiguration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[ai]\nidle_timeout='3m'\nmax_concurrent_requests=16\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name string
+		args []string
+		env  map[string]string
+		idle time.Duration
+		max  int
+	}{
+		{"file", nil, nil, 3 * time.Minute, 16},
+		{"environment", nil, map[string]string{"MINIERP_AI_IDLE_TIMEOUT": "4m", "MINIERP_AI_MAX_CONCURRENT_REQUESTS": "24"}, 4 * time.Minute, 24},
+		{"arguments", []string{"--ai-idle-timeout", "5m", "--ai-max-concurrent-requests", "48"}, map[string]string{"MINIERP_AI_IDLE_TIMEOUT": "invalid", "MINIERP_AI_MAX_CONCURRENT_REQUESTS": "invalid"}, 5 * time.Minute, 48},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			args := append([]string{"-c", path}, test.args...)
+			c, err := Load(args, func(k string) string { return test.env[k] }, io.Discard)
+			if err != nil || c.AIIdleTimeout != test.idle || c.AIMaxConcurrentRequests != test.max {
+				t.Fatalf("config=%+v err=%v", c, err)
+			}
+		})
+	}
+}
+
+func TestInvalidAIConfiguration(t *testing.T) {
+	for _, args := range [][]string{
+		{"--ai-idle-timeout", "0s"}, {"--ai-idle-timeout", "bad"},
+		{"--ai-max-concurrent-requests", "0"}, {"--ai-max-concurrent-requests", "-1"},
+	} {
+		if _, err := Load(args, func(string) string { return "" }, io.Discard); err == nil {
+			t.Fatalf("accepted %v", args)
+		}
+	}
+	for _, text := range []string{"0", "-1", "bad"} {
+		getenv := func(name string) string {
+			if name == "MINIERP_AI_MAX_CONCURRENT_REQUESTS" {
+				return text
+			}
+			return ""
+		}
+		if _, err := Load(nil, getenv, io.Discard); err == nil {
+			t.Fatalf("accepted concurrency %q", text)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "zero.toml")
+	if err := os.WriteFile(path, []byte("[ai]\nmax_concurrent_requests=0\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load([]string{"-c", path}, func(string) string { return "" }, io.Discard); err == nil {
+		t.Fatal("accepted explicit zero concurrency in file")
 	}
 }
 func TestPrecedence(t *testing.T) {

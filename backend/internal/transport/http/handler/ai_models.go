@@ -8,7 +8,7 @@ import (
 )
 
 func availableAIModels(s *service.Service) *gorm.DB {
-	return s.DB.Model(&model.AIModel{}).Joins("JOIN ai_resources ON ai_resources.id = ai_models.resource_id").Where("ai_models.enabled = ? AND ai_resources.enabled = ?", true, true)
+	return s.ReadDB().Model(&model.AIModel{}).Joins("JOIN ai_resources ON ai_resources.id = ai_models.resource_id").Where("ai_models.enabled = ? AND ai_resources.enabled = ?", true, true)
 }
 
 func (h *Handler) AIModels(c *gin.Context) {
@@ -16,7 +16,7 @@ func (h *Handler) AIModels(c *gin.Context) {
 	if !ok {
 		return
 	}
-	q := h.Service.DB.Model(&model.AIModel{}).Joins("JOIN ai_resources ON ai_resources.id = ai_models.resource_id")
+	q := h.Service.ReadDB().WithContext(c.Request.Context()).Model(&model.AIModel{}).Joins("JOIN ai_resources ON ai_resources.id = ai_models.resource_id")
 	if text := c.Query("q"); text != "" {
 		q = q.Where("ai_models.internal_id LIKE ? OR ai_models.external_id LIKE ? OR ai_resources.name LIKE ?", "%"+text+"%", "%"+text+"%", "%"+text+"%")
 	}

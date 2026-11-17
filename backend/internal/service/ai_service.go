@@ -22,18 +22,16 @@ import (
 )
 
 type AIState struct {
-	once     sync.Once
-	key      []byte
-	err      error
-	Slots    chan struct{}
-	poolMu   sync.Mutex
-	cursors  map[uint]uint
-	inFlight map[uint]int
+	once  sync.Once
+	key   []byte
+	err   error
+	Slots chan struct{}
+	pools sync.Map
 }
 
 func (s *Service) aiCipher() (cipher.AEAD, error) {
 	s.ai.once.Do(func() {
-		s.ai.Slots = make(chan struct{}, 32)
+		s.ai.Slots = make(chan struct{}, s.Config.ProxyConcurrency())
 		if s.Config.DataDir == "" {
 			s.ai.err = errors.New("AI key data directory is missing")
 			return
@@ -201,7 +199,11 @@ func (s *Service) ResolveAIKey(raw string) (model.AIKey, error) {
 	if !strings.HasPrefix(raw, "mierp_") || len(raw) > 128 {
 		return k, Fail(401, "invalid_key", "密钥无效或已撤销")
 	}
-	err := s.DB.Preload("User.Roles.Permissions").Where("token_hash = ? AND enabled = ?", hashAISecret(raw), true).First(&k).Error
+	var err error
+	k, err = repository.AIKeyAccess(s.ReadDB(), hashAISecret(raw))
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return k, err
+	}
 	if err != nil || !k.User.Enabled {
 		return k, Fail(401, "invalid_key", "密钥或用户无效或已停用")
 	}
@@ -223,7 +225,7 @@ func (s *Service) decryptProviderKey(key model.AIProviderKey) (string, error) {
 	return string(secret), err
 }
 func (s *Service) RecordAIRequest(id uint) error {
-	return s.DB.Model(&model.AIKey{}).Where("id = ?", id).Updates(map[string]any{"requests": gorm.Expr("requests + 1"), "last_used_at": time.Now()}).Error
+	return s.recordUsage(false, id, time.Now())
 }
 
 // Never retain request/response bodies or plaintext credentials in usage records.
@@ -233,8 +235,9 @@ func (s *Service) AcquireAIProxy() (func(), error) {
 	}
 	select {
 	case s.ai.Slots <- struct{}{}:
-		return func() { <-s.ai.Slots }, nil
+		var once sync.Once
+		return func() { once.Do(func() { <-s.ai.Slots }) }, nil
 	default:
-		return nil, Fail(429, "busy", "AI 请求繁忙，请稍后重试")
+		return nil, &Error{Status: 429, Code: "busy", Message: "AI 请求繁忙，请稍后重试", RetryAfter: time.Second}
 	}
 }

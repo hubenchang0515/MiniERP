@@ -24,7 +24,7 @@ func (h *Handler) Users(c *gin.Context) {
 			return
 		}
 	}
-	users, total, err := repository.Users(h.Service.DB, c.Query("q"), page, size)
+	users, total, err := repository.Users(h.Service.ReadDB().WithContext(c.Request.Context()), c.Query("q"), page, size)
 	if err != nil {
 		RespondError(c, err)
 		return
@@ -36,7 +36,7 @@ func (h *Handler) User(c *gin.Context) {
 	if !ok {
 		return
 	}
-	v, err := repository.User(h.Service.DB, id)
+	v, err := repository.User(h.Service.ReadDB().WithContext(c.Request.Context()), id)
 	if err != nil {
 		RespondError(c, err)
 		return

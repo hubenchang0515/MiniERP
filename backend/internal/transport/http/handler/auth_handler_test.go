@@ -16,7 +16,10 @@ import (
 
 func server(t *testing.T) (*gin.Engine, *service.Service) {
 	gin.SetMode(gin.TestMode)
-	s := &service.Service{DB: testutil.DB(t), Config: config.Config{JWTSecret: "test", JWTTTL: time.Hour}}
+	writer, reader := testutil.Databases(t)
+	s := &service.Service{DB: writer, Reader: reader, Config: config.Config{JWTSecret: "test", JWTTTL: time.Hour}}
+	s.StartUsageWriter()
+	t.Cleanup(s.StopUsageWriter)
 	return transport.Router(s), s
 }
 func call(t *testing.T, r *gin.Engine, method, path, body, token string, status int) *httptest.ResponseRecorder {

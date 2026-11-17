@@ -24,7 +24,7 @@ type AIModelListInput struct {
 func (s *Service) FetchAIModels(ctx context.Context, in AIModelListInput) ([]string, error) {
 	if in.BaseURL == "" && in.ResourceID != 0 {
 		var resource model.AIResource
-		if err := s.DB.First(&resource, in.ResourceID).Error; err != nil {
+		if err := s.ReadDB().First(&resource, in.ResourceID).Error; err != nil {
 			return nil, Normalize(err)
 		}
 		in.BaseURL = resource.BaseURL
@@ -40,7 +40,7 @@ func (s *Service) FetchAIModels(ctx context.Context, in AIModelListInput) ([]str
 			return nil, Fail(400, "validation", "请先填写外部 API KEY")
 		}
 		var resource model.AIResource
-		if err := s.DB.First(&resource, in.ResourceID).Error; err != nil {
+		if err := s.ReadDB().First(&resource, in.ResourceID).Error; err != nil {
 			return nil, Normalize(err)
 		}
 		// A stored credential may only be reused with its saved upstream address.
@@ -66,7 +66,7 @@ func (s *Service) FetchAIModels(ctx context.Context, in AIModelListInput) ([]str
 	}
 	req.Header.Set("Authorization", "Bearer "+secret)
 	req.Header.Set("Accept", "application/json")
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{Transport: aiHTTPTransport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	if usePool {
 		client.Transport = &AIProviderTransport{Service: s, ResourceID: in.ResourceID}
 	}
@@ -139,7 +139,7 @@ func (s *Service) SaveAIModel(id uint, in AIModelInput) (model.AIModel, error) {
 
 func (s *Service) ResolveAIModel(internalID string) (model.AIModel, error) {
 	var m model.AIModel
-	err := s.DB.Preload("Resource").Where("internal_id = ? AND enabled = ?", internalID, true).First(&m).Error
+	err := s.ReadDB().Joins("Resource").Where("ai_models.internal_id = ? AND ai_models.enabled = ?", internalID, true).First(&m).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && !m.Resource.Enabled) {
 		return m, Fail(400, "invalid_model", "模型不存在或已停用，请通过 /ai/v1/models 查询可用模型")
 	}

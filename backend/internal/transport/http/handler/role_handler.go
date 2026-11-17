@@ -13,7 +13,7 @@ func (h *Handler) Roles(c *gin.Context) {
 	if !ok {
 		return
 	}
-	v, total, err := repository.Roles(h.Service.DB, c.Query("q"), page, size)
+	v, total, err := repository.Roles(h.Service.ReadDB().WithContext(c.Request.Context()), c.Query("q"), page, size)
 	if err != nil {
 		RespondError(c, err)
 		return
@@ -25,7 +25,7 @@ func (h *Handler) RoleOptions(c *gin.Context) {
 	if !ok {
 		return
 	}
-	items, total, err := repository.RoleOptions(h.Service.DB, c.Query("q"), page, size)
+	items, total, err := repository.RoleOptions(h.Service.ReadDB().WithContext(c.Request.Context()), c.Query("q"), page, size)
 	if err != nil {
 		RespondError(c, err)
 		return
@@ -37,7 +37,7 @@ func (h *Handler) Role(c *gin.Context) {
 	if !ok {
 		return
 	}
-	v, err := repository.Role(h.Service.DB, id)
+	v, err := repository.Role(h.Service.ReadDB().WithContext(c.Request.Context()), id)
 	if err != nil {
 		RespondError(c, err)
 		return

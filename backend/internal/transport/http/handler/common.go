@@ -9,6 +9,7 @@ import (
 	"minierp/internal/service"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type Handler struct{ Service *service.Service }
@@ -17,12 +18,26 @@ func RespondError(c *gin.Context, err error) {
 	err = service.Normalize(err)
 	var e *service.Error
 	if errors.As(err, &e) {
+		if e.RetryAfter > 0 {
+			c.Header("Retry-After", retryAfterSeconds(e.RetryAfter))
+		}
 		c.AbortWithStatusJSON(e.Status, gin.H{"code": e.Code, "message": e.Message})
 		return
 	}
 	log.Printf("request %s %s: %v", c.Request.Method, c.Request.URL.Path, err)
 	c.AbortWithStatusJSON(500, gin.H{"code": "internal_error", "message": "服务器处理失败，请稍后重试"})
 }
+func retryAfterSeconds(delay time.Duration) string {
+	seconds := int64(delay / time.Second)
+	if delay%time.Second != 0 {
+		seconds++
+	}
+	if seconds < 1 {
+		seconds = 1
+	}
+	return strconv.FormatInt(seconds, 10)
+}
+
 func bind(c *gin.Context, v any) bool {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20)
 	d := json.NewDecoder(c.Request.Body)

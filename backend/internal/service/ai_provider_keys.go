@@ -5,6 +5,7 @@ import (
 	"gorm.io/gorm"
 	"minierp/internal/model"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 )
@@ -76,38 +77,61 @@ type ProviderKeyLease struct {
 	Secret   string
 	Probe    bool
 	service  *Service
+	pool     *providerPool
 	released bool
+}
+
+type providerPool struct {
+	mu       sync.Mutex
+	cursor   uint
+	inFlight map[uint]int
+}
+
+func (s *Service) providerPool(id uint) *providerPool {
+	if pool, ok := s.ai.pools.Load(id); ok {
+		return pool.(*providerPool)
+	}
+	pool, _ := s.ai.pools.LoadOrStore(id, &providerPool{inFlight: map[uint]int{}})
+	return pool.(*providerPool)
 }
 
 // Selection and probe admission are serialized; network requests never hold this lock.
 func (s *Service) AcquireProviderKey(resourceID uint, excluded map[uint]bool) (*ProviderKeyLease, error) {
-	s.ai.poolMu.Lock()
-	defer s.ai.poolMu.Unlock()
-	if s.ai.cursors == nil {
-		s.ai.cursors = map[uint]uint{}
-		s.ai.inFlight = map[uint]int{}
-	}
+	pool := s.providerPool(resourceID)
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
 	var keys []model.AIProviderKey
-	if err := s.DB.Where("resource_id = ? AND enabled = ?", resourceID, true).Order("id").Find(&keys).Error; err != nil {
+	if err := s.ReadDB().Where("resource_id = ? AND enabled = ?", resourceID, true).Order("id").Find(&keys).Error; err != nil {
 		return nil, err
 	}
 	now := time.Now()
 	var candidates []model.AIProviderKey
+	var earliestRetry time.Time
 	for _, k := range keys {
 		if excluded[k.ID] || k.State == ProviderKeyInvalid {
 			continue
 		}
-		if k.State != ProviderKeyAvailable && (k.RetryAt == nil || k.RetryAt.After(now) || s.ai.inFlight[k.ID] > 0) {
+		if k.State != ProviderKeyAvailable && (k.RetryAt == nil || k.RetryAt.After(now) || pool.inFlight[k.ID] > 0) {
+			if k.RetryAt != nil && (earliestRetry.IsZero() || k.RetryAt.Before(earliestRetry)) {
+				earliestRetry = *k.RetryAt
+			}
 			continue
 		}
 		candidates = append(candidates, k)
 	}
 	if len(candidates) == 0 {
-		return nil, Fail(503, "no_available_key", "供应商暂无可用密钥，请稍后重试")
+		var delay time.Duration
+		if !earliestRetry.IsZero() {
+			delay = time.Second
+			if earliestRetry.After(now) {
+				delay = earliestRetry.Sub(now)
+			}
+		}
+		return nil, &Error{Status: 503, Code: "no_available_key", Message: "供应商暂无可用密钥，请稍后重试", RetryAfter: delay}
 	}
 	start := 0
 	for i, k := range candidates {
-		if k.ID > s.ai.cursors[resourceID] {
+		if k.ID > pool.cursor {
 			start = i
 			break
 		}
@@ -115,7 +139,7 @@ func (s *Service) AcquireProviderKey(resourceID uint, excluded map[uint]bool) (*
 	selected := candidates[start]
 	for i := 1; i < len(candidates); i++ {
 		k := candidates[(start+i)%len(candidates)]
-		if s.ai.inFlight[k.ID] < s.ai.inFlight[selected.ID] {
+		if pool.inFlight[k.ID] < pool.inFlight[selected.ID] {
 			selected = k
 		}
 	}
@@ -123,26 +147,26 @@ func (s *Service) AcquireProviderKey(resourceID uint, excluded map[uint]bool) (*
 	if err != nil {
 		return nil, err
 	}
-	if err := s.DB.Model(&model.AIProviderKey{}).Where("id = ?", selected.ID).Updates(map[string]any{"requests": gorm.Expr("requests + 1"), "last_used_at": now}).Error; err != nil {
+	if err := s.recordUsage(true, selected.ID, now); err != nil {
 		return nil, err
 	}
-	s.ai.cursors[resourceID] = selected.ID
-	s.ai.inFlight[selected.ID]++
-	return &ProviderKeyLease{Key: selected, Secret: secret, Probe: selected.State != ProviderKeyAvailable, service: s}, nil
+	pool.cursor = selected.ID
+	pool.inFlight[selected.ID]++
+	return &ProviderKeyLease{Key: selected, Secret: secret, Probe: selected.State != ProviderKeyAvailable, service: s, pool: pool}, nil
 }
 
 // A revision check prevents late responses from changing a replaced key or newer health state.
 func (l *ProviderKeyLease) Finish(state string, retryAt *time.Time, success bool) error {
 	s := l.service
-	s.ai.poolMu.Lock()
-	defer s.ai.poolMu.Unlock()
+	l.pool.mu.Lock()
+	defer l.pool.mu.Unlock()
 	if l.released {
 		return nil
 	}
 	l.released = true
-	s.ai.inFlight[l.Key.ID]--
-	if s.ai.inFlight[l.Key.ID] == 0 {
-		delete(s.ai.inFlight, l.Key.ID)
+	l.pool.inFlight[l.Key.ID]--
+	if l.pool.inFlight[l.Key.ID] == 0 {
+		delete(l.pool.inFlight, l.Key.ID)
 	}
 	if state == "" && !(success && l.Probe) {
 		return nil

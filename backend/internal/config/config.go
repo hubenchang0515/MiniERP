@@ -16,7 +16,27 @@ import (
 type Config struct {
 	Addr, DataDir, JWTSecret, SecretSource string
 	JWTTTL                                 time.Duration
+	AIIdleTimeout                          time.Duration
+	AIMaxConcurrentRequests                int
 }
+
+const DefaultAIIdleTimeout = 2 * time.Minute
+const DefaultAIMaxConcurrentRequests = 32
+
+func (c Config) ProxyIdleTimeout() time.Duration {
+	if c.AIIdleTimeout > 0 {
+		return c.AIIdleTimeout
+	}
+	return DefaultAIIdleTimeout
+}
+
+func (c Config) ProxyConcurrency() int {
+	if c.AIMaxConcurrentRequests > 0 {
+		return c.AIMaxConcurrentRequests
+	}
+	return DefaultAIMaxConcurrentRequests
+}
+
 type fileConfig struct {
 	Server struct {
 		Addr string `toml:"addr"`
@@ -28,6 +48,10 @@ type fileConfig struct {
 		Secret string `toml:"jwt_secret"`
 		TTL    string `toml:"jwt_ttl"`
 	} `toml:"auth"`
+	AI struct {
+		IdleTimeout           string `toml:"idle_timeout"`
+		MaxConcurrentRequests *int   `toml:"max_concurrent_requests"`
+	} `toml:"ai"`
 }
 
 func Load(args []string, getenv func(string) string, out io.Writer) (Config, error) {
@@ -35,6 +59,10 @@ func Load(args []string, getenv func(string) string, out io.Writer) (Config, err
 	fs := flag.NewFlagSet("minierp", flag.ContinueOnError)
 	fs.SetOutput(out)
 	path, addr, dir, secret, ttl := "", "", "", "", ""
+	idleTimeout := ""
+	maxConcurrent := DefaultAIMaxConcurrentRequests
+	fs.StringVar(&idleTimeout, "ai-idle-timeout", "", "AI 无数据传输超时（默认 2m，持续输出不会超时）")
+	fs.IntVar(&maxConcurrent, "ai-max-concurrent-requests", DefaultAIMaxConcurrentRequests, "AI 最大并发转发数（默认 32）")
 	for _, n := range []string{"c", "config"} {
 		fs.StringVar(&path, n, "", "TOML 配置文件（默认 ./config.toml）")
 	}
@@ -74,6 +102,8 @@ func Load(args []string, getenv func(string) string, out io.Writer) (Config, err
 		return c, err
 	}
 	ttlValue := "168h"
+	idleValue := DefaultAIIdleTimeout.String()
+	c.AIMaxConcurrentRequests = DefaultAIMaxConcurrentRequests
 	if err == nil {
 		var f fileConfig
 		if err = toml.Unmarshal(b, &f); err != nil {
@@ -92,6 +122,12 @@ func Load(args []string, getenv func(string) string, out io.Writer) (Config, err
 		if f.Auth.TTL != "" {
 			ttlValue = f.Auth.TTL
 		}
+		if f.AI.IdleTimeout != "" {
+			idleValue = f.AI.IdleTimeout
+		}
+		if f.AI.MaxConcurrentRequests != nil {
+			c.AIMaxConcurrentRequests = *f.AI.MaxConcurrentRequests
+		}
 	}
 	if v := getenv("MINIERP_ADDR"); v != "" {
 		c.Addr = v
@@ -106,6 +142,15 @@ func Load(args []string, getenv func(string) string, out io.Writer) (Config, err
 	if v := getenv("MINIERP_JWT_TTL"); v != "" {
 		ttlValue = v
 	}
+	if v := getenv("MINIERP_AI_IDLE_TIMEOUT"); v != "" {
+		idleValue = v
+	}
+	if v := getenv("MINIERP_AI_MAX_CONCURRENT_REQUESTS"); v != "" && !visited["ai-max-concurrent-requests"] {
+		c.AIMaxConcurrentRequests, err = strconv.Atoi(v)
+		if err != nil {
+			return c, fmt.Errorf("AI 最大并发转发数必须是正整数")
+		}
+	}
 	if visited["a"] || visited["addr"] {
 		c.Addr = addr
 	}
@@ -118,6 +163,19 @@ func Load(args []string, getenv func(string) string, out io.Writer) (Config, err
 	}
 	if visited["t"] || visited["jwt-ttl"] {
 		ttlValue = ttl
+	}
+	if visited["ai-idle-timeout"] {
+		idleValue = idleTimeout
+	}
+	if visited["ai-max-concurrent-requests"] {
+		c.AIMaxConcurrentRequests = maxConcurrent
+	}
+	c.AIIdleTimeout, err = time.ParseDuration(idleValue)
+	if err != nil || c.AIIdleTimeout <= 0 {
+		return c, fmt.Errorf("AI 无数据传输超时必须是正时间长度")
+	}
+	if c.AIMaxConcurrentRequests <= 0 {
+		return c, fmt.Errorf("AI 最大并发转发数必须是正整数")
 	}
 	_, port, err := net.SplitHostPort(c.Addr)
 	if err != nil {

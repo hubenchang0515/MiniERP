@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"io"
+	"log"
 	"minierp/internal/model"
 	"minierp/internal/service"
 	"net/http"
@@ -15,6 +17,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,7 +28,7 @@ func (h *Handler) AIResources(c *gin.Context) {
 	}
 	items := []model.AIResource{}
 	var total int64
-	q := h.Service.DB.Model(&model.AIResource{})
+	q := h.Service.ReadDB().WithContext(c.Request.Context()).Model(&model.AIResource{})
 	if text := c.Query("q"); text != "" {
 		q = q.Where("name LIKE ? OR base_url LIKE ?", "%"+text+"%", "%"+text+"%")
 	}
@@ -77,7 +80,7 @@ func (h *Handler) AIResourceOptions(c *gin.Context) {
 	if !ok {
 		return
 	}
-	q := h.Service.DB.Model(&model.AIResource{})
+	q := h.Service.ReadDB().WithContext(c.Request.Context()).Model(&model.AIResource{})
 	if text := c.Query("q"); text != "" {
 		q = q.Where("name LIKE ?", "%"+text+"%")
 	}
@@ -108,7 +111,7 @@ func (h *Handler) AIKeys(c *gin.Context) {
 		return
 	}
 	u := c.MustGet("user").(model.User)
-	q := h.Service.DB.Model(&model.AIKey{}).Joins("JOIN users ON users.id = ai_keys.user_id")
+	q := h.Service.ReadDB().WithContext(c.Request.Context()).Model(&model.AIKey{}).Joins("JOIN users ON users.id = ai_keys.user_id")
 	if c.Query("all") == "true" {
 		if !systemAdmin(u) {
 			RespondError(c, service.Fail(403, "forbidden", "仅系统管理员可查看全部密钥"))
@@ -178,7 +181,12 @@ func (h *Handler) ChangeAIKey(c *gin.Context) {
 	}
 }
 
+var aiRequestSequence atomic.Uint64
+
 func (h *Handler) AIProxy(c *gin.Context) {
+	started := time.Now()
+	requestID := fmt.Sprintf("%x-%x", started.UnixNano(), aiRequestSequence.Add(1))
+	c.Header("X-Request-ID", requestID)
 	path := c.Param("path")
 	allowed := (c.Request.Method == "GET" && path == "/models") || (c.Request.Method == "POST" && (path == "/chat/completions" || path == "/embeddings" || path == "/responses"))
 	if !allowed {
@@ -217,6 +225,7 @@ func (h *Handler) AIProxy(c *gin.Context) {
 	}
 	release, err := h.Service.AcquireAIProxy()
 	if err != nil {
+		log.Printf("ai proxy rejected request_id=%s reason=admission_failed limit=%d", requestID, h.Service.Config.ProxyConcurrency())
 		RespondError(c, err)
 		return
 	}
@@ -266,38 +275,76 @@ func (h *Handler) AIProxy(c *gin.Context) {
 		RespondError(c, err)
 		return
 	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
-	defer cancel()
+	clientCtx := c.Request.Context()
+	idleTimeout := h.Service.Config.ProxyIdleTimeout()
+	ctx, activity := watchProxyActivity(clientCtx, idleTimeout)
+	defer activity.close()
+	var streamErr error
+	var writeTimedOut atomic.Bool
+	defer logProxyAbort(clientCtx, ctx, &streamErr, &writeTimedOut, path, requestID, started)
 	c.Request = c.Request.WithContext(ctx)
 	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Time{})
-	proxy := httputil.ReverseProxy{Transport: &service.AIProviderTransport{Service: h.Service, ResourceID: mapping.ResourceID, Body: body, Inference: true}, FlushInterval: -1, Rewrite: func(r *httputil.ProxyRequest) {
+	timing := &service.AIProxyTiming{}
+	proxy := httputil.ReverseProxy{Transport: &service.AIProviderTransport{Service: h.Service, ResourceID: mapping.ResourceID, Body: body, Inference: true, Timing: timing}, FlushInterval: -1, ErrorLog: log.New(io.Discard, "", 0), Rewrite: func(r *httputil.ProxyRequest) {
 		r.SetURL(target)
 		r.Out.URL.Path = strings.TrimRight(target.Path, "/") + path
 		r.Out.URL.RawPath = ""
 		r.Out.Host = target.Host
 		r.Out.Header = http.Header{"Content-Type": []string{"application/json"}, "Content-Length": []string{strconv.Itoa(len(body))}, "Accept": []string{r.In.Header.Get("Accept")}}
 	}, ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-		w.Header().Set("Content-Type", "application/json")
-		status, message, kind := 502, "上游 AI 服务连接失败", "upstream_error"
+		reason := proxyStopReason(clientCtx, ctx, err)
+		if reason == "upstream_read_failed" {
+			reason = "upstream_connection_failed"
+		}
 		var e *service.Error
 		if errors.As(err, &e) {
+			reason = e.Code
+		}
+		log.Printf("ai proxy stopped request_id=%s stage=headers reason=%s path=%s attempts=%d elapsed=%s", requestID, reason, path, timing.Attempts, time.Since(started).Round(time.Millisecond))
+		if clientCtx.Err() != nil {
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		status, message, kind := 502, "上游 AI 服务连接失败", "upstream_error"
+		if errors.Is(context.Cause(ctx), errAIIdleTimeout) {
+			status, message, kind = 504, "上游 AI 服务长时间未返回数据", "gateway_idle_timeout"
+		}
+		if errors.As(err, &e) {
 			status, message, kind = e.Status, e.Message, e.Code
+			if e.RetryAfter > 0 {
+				w.Header().Set("Retry-After", retryAfterSeconds(e.RetryAfter))
+			}
 		}
 		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(gin.H{"error": gin.H{"message": message, "type": kind}})
 	}, ModifyResponse: func(r *http.Response) error {
+		activity.touch()
 		if r.StatusCode >= 300 {
+			retryAfter := r.Header.Get("Retry-After")
 			r.Body.Close()
 			r.Body = io.NopCloser(strings.NewReader(`{"error":{"message":"上游 AI 服务请求失败","type":"upstream_error"}}`))
 			r.ContentLength = -1
 			r.Header = http.Header{"Content-Type": []string{"application/json"}}
+			if retryAfter != "" {
+				r.Header.Set("Retry-After", retryAfter)
+			}
 			if r.StatusCode < 400 {
 				r.StatusCode = 502
 			}
 		}
 		r.Header.Del("Set-Cookie")
 		r.Header.Del("Authorization")
+		// ReverseProxy adds provider headers to the existing response headers.
+		// Keep the locally assigned ID and discard the provider's ID.
+		r.Header.Del("X-Request-ID")
+		if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "text/event-stream") {
+			r.Header.Set("Cache-Control", "no-cache")
+			r.Header.Set("X-Accel-Buffering", "no")
+		}
+		r.Body = &observedProxyBody{ReadCloser: r.Body, readErr: &streamErr, touch: activity.touch}
+		local := time.Since(started) - timing.UpstreamHeaders
+		r.Header.Set("Server-Timing", fmt.Sprintf("gateway;dur=%.2f, upstream_headers;dur=%.2f, attempts;desc=\"%d\"", float64(local)/float64(time.Millisecond), float64(timing.UpstreamHeaders)/float64(time.Millisecond), timing.Attempts))
 		return nil
 	}}
-	proxy.ServeHTTP(c.Writer, c.Request)
+	proxy.ServeHTTP(&proxyStreamWriter{ResponseWriter: c.Writer, idle: idleTimeout, timedOut: &writeTimedOut}, c.Request)
 }

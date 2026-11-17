@@ -34,14 +34,24 @@ func main() {
 	}
 	sqlDB, _ := db.DB()
 	defer sqlDB.Close()
+	reader, err := database.OpenReader(c.DataDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	readPool, _ := reader.DB()
+	defer readPool.Close()
 	gin.SetMode(gin.ReleaseMode)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	s := &service.Service{DB: db, Config: c}
+	s := &service.Service{DB: db, Reader: reader, Config: c}
+	s.StartUsageWriter()
+	defer s.StopUsageWriter()
 	s.StartResourceMonitor(ctx)
 	server := &http.Server{Addr: c.Addr, Handler: transport.Router(s), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
+	shutdownDone := make(chan struct{})
 	go func() {
 		<-ctx.Done()
+		defer close(shutdownDone)
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := server.Shutdown(shutdown); err != nil {
@@ -51,5 +61,8 @@ func main() {
 	log.Printf("MiniERP 已启动: http://%s；数据目录: %s", c.Addr, c.DataDir)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
+	}
+	if ctx.Err() != nil {
+		<-shutdownDone
 	}
 }

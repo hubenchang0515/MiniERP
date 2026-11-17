@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -13,10 +14,20 @@ import (
 
 type Service struct {
 	DB        *gorm.DB
+	Reader    *gorm.DB
 	Config    config.Config
 	resources resourceMonitor
 	ai        AIState
+	usage     usageWriter
 }
+
+func (s *Service) ReadDB() *gorm.DB {
+	if s.Reader != nil {
+		return s.Reader
+	}
+	return s.DB
+}
+
 type claims struct {
 	Version uint `json:"v"`
 	jwt.RegisteredClaims
@@ -24,7 +35,7 @@ type claims struct {
 
 func (s *Service) Initialized() (bool, error) {
 	var n int64
-	err := s.DB.Model(&model.User{}).Count(&n).Error
+	err := s.ReadDB().Model(&model.User{}).Count(&n).Error
 	return n > 0, err
 }
 func (s *Service) Bootstrap(in Credentials) (Session, error) {
@@ -67,7 +78,7 @@ func (s *Service) Bootstrap(in Credentials) (Session, error) {
 const dummyHash = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
 
 func (s *Service) Login(in Credentials) (Session, error) {
-	u, err := repository.UserByName(s.DB, in.Username)
+	u, err := repository.UserByName(s.ReadDB(), in.Username)
 	hash := u.PasswordHash
 	if err != nil {
 		hash = dummyHash
@@ -121,7 +132,10 @@ func (s *Service) Authenticate(raw string) (model.User, error) {
 	if err != nil || id == 0 {
 		return model.User{}, invalid
 	}
-	u, err := repository.User(s.DB, uint(id))
+	u, err := repository.UserAccess(s.ReadDB(), uint(id))
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.User{}, err
+	}
 	if err != nil || !u.Enabled || u.TokenVersion != c.Version {
 		return model.User{}, invalid
 	}

@@ -16,7 +16,20 @@ type AIProviderTransport struct {
 	ResourceID uint
 	Body       []byte
 	Inference  bool
+	Timing     *AIProxyTiming
 }
+
+type AIProxyTiming struct {
+	UpstreamHeaders time.Duration
+	Attempts        int
+}
+
+var aiHTTPTransport = func() *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConnsPerHost = 32
+	transport.MaxIdleConns = 128
+	return transport
+}()
 
 type providerResponseBody struct {
 	io.ReadCloser
@@ -57,7 +70,12 @@ func (t *AIProviderTransport) RoundTrip(req *http.Request) (*http.Response, erro
 			out.Body = io.NopCloser(bytes.NewReader(t.Body))
 			out.ContentLength = int64(len(t.Body))
 		}
-		response, err := http.DefaultTransport.RoundTrip(out)
+		started := time.Now()
+		response, err := aiHTTPTransport.RoundTrip(out)
+		if t.Timing != nil {
+			t.Timing.Attempts++
+			t.Timing.UpstreamHeaders += time.Since(started)
+		}
 		if err != nil {
 			state := ""
 			var retryAt *time.Time
@@ -78,10 +96,23 @@ func (t *AIProviderTransport) RoundTrip(req *http.Request) (*http.Response, erro
 			return response, nil
 		}
 		// Error bodies are inspected locally and never returned to the caller.
+		started = time.Now()
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+		if t.Timing != nil {
+			t.Timing.UpstreamHeaders += time.Since(started)
+		}
 		response.Body.Close()
 		response.Body = io.NopCloser(bytes.NewReader(nil))
 		state, retryAt := providerFailure(response.StatusCode, response.Header, body, time.Now())
+		// Only forward a validated cooldown, never arbitrary provider headers.
+		response.Header.Del("Retry-After")
+		if retryAt != nil {
+			seconds := int64(time.Until(*retryAt).Seconds()) + 1
+			if seconds < 1 {
+				seconds = 1
+			}
+			response.Header.Set("Retry-After", strconv.FormatInt(seconds, 10))
+		}
 		retryable := state != ""
 		if state == "" && lease.Probe {
 			state = lease.Key.State
