@@ -106,6 +106,7 @@ function MappingDialog({
           disabled={busy || fetching}
           onChange={(r) => {
             setResource(r);
+            setError("");
             setSuggestions(null);
             setFetchError("");
           }}

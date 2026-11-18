@@ -289,22 +289,26 @@ describe("AI resources and keys", () => {
     expect(screen.getByRole("textbox", { name: "内部模型 ID" })).toHaveValue(
       "chat-default",
     );
-    await waitFor(() =>
-      expect(
-        screen.getByRole("combobox", { name: "供应商" }),
-      ).not.toBeDisabled(),
-    );
+    const supplier = screen.getByRole("combobox", { name: "供应商" });
+    expect(supplier).toHaveValue("外部服务");
     fireEvent.click(screen.getByRole("button", { name: "获取上游模型" }));
     await screen.findByText(/已获取 1 个模型/);
     expect(aiApi.upstreamModels).toHaveBeenCalledWith({ resourceId: 1 });
     expect(screen.queryByLabelText("外部 API KEY")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByRole("combobox", { name: "供应商" }), {
-      target: { value: "2" },
+    fireEvent.change(supplier, {
+      target: { value: "第二" },
     });
     expect(screen.queryByText(/已获取 1 个模型/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "获取上游模型" })).toBeDisabled();
     fireEvent.change(screen.getByRole("textbox", { name: "外部模型 ID" }), {
       target: { value: "second-model" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(aiApi.saveModel).not.toHaveBeenCalled();
+    expect(await screen.findByText("请选择供应商")).toBeInTheDocument();
+    fireEvent.click(supplier);
+    fireEvent.click(await screen.findByRole("option", { name: "第二供应商" }));
+    expect(supplier).toHaveValue("第二供应商");
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() =>
       expect(aiApi.saveModel).toHaveBeenCalledWith(4, {
@@ -343,14 +347,8 @@ describe("AI resources and keys", () => {
     fireEvent.click(screen.getByRole("link", { name: "模型映射" }));
     await screen.findByText("暂无模型映射");
     fireEvent.click(screen.getByRole("button", { name: "新增映射" }));
-    await waitFor(() =>
-      expect(
-        screen.getByRole("combobox", { name: "供应商" }),
-      ).not.toBeDisabled(),
-    );
-    fireEvent.change(screen.getByRole("combobox", { name: "供应商" }), {
-      target: { value: "1" },
-    });
+    fireEvent.click(screen.getByRole("combobox", { name: "供应商" }));
+    fireEvent.click(await screen.findByRole("option", { name: "外部服务" }));
     fireEvent.click(screen.getByRole("button", { name: "获取上游模型" }));
     await screen.findByText("上游不支持模型列表");
     expect(
@@ -413,6 +411,19 @@ describe("AI resources and keys", () => {
   });
   it("creates supplier credentials on the independent key management tab", async () => {
     vi.mocked(aiApi.saveProviderKey).mockResolvedValue(resource.keys[0]);
+    vi.mocked(aiApi.resourceOptions)
+      .mockResolvedValueOnce({
+        items: [{ ...resource, id: 2, name: "外部测试", enabled: false }],
+        total: 11,
+        page: 1,
+        pageSize: 10,
+      })
+      .mockResolvedValueOnce({
+        items: [resource],
+        total: 11,
+        page: 2,
+        pageSize: 10,
+      });
     renderAI();
     await screen.findByText("外部服务");
     fireEvent.click(screen.getByRole("link", { name: "密钥管理" }));
@@ -424,14 +435,20 @@ describe("AI resources and keys", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "密钥名称" }), {
       target: { value: "second" },
     });
-    await waitFor(() =>
-      expect(
-        screen.getByRole("combobox", { name: "供应商" }),
-      ).not.toBeDisabled(),
-    );
-    fireEvent.change(screen.getByRole("combobox", { name: "供应商" }), {
-      target: { value: "1" },
-    });
+    const supplier = screen.getByRole("combobox", { name: "供应商" });
+    fireEvent.change(supplier, { target: { value: "外部" } });
+    expect(
+      await screen.findByRole("option", { name: /外部测试.*已停用/ }),
+    ).toBeInTheDocument();
+    expect(aiApi.resourceOptions).toHaveBeenLastCalledWith("外部", 1);
+    fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
+    await screen.findByRole("option", { name: "外部服务" });
+    expect(aiApi.resourceOptions).toHaveBeenLastCalledWith("外部", 2);
+    fireEvent.keyDown(supplier, { key: "ArrowDown" });
+    fireEvent.keyDown(supplier, { key: "ArrowDown" });
+    fireEvent.keyDown(supplier, { key: "Enter" });
+    expect(supplier).toHaveValue("外部服务");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("外部 API KEY"), {
       target: { value: "new-secret" },
     });

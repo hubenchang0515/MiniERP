@@ -99,7 +99,10 @@ function KeyDialog({
         ) : (
           <ResourceChoice
             value={resource}
-            onChange={setResource}
+            onChange={(r) => {
+              setResource(r);
+              setError("");
+            }}
             disabled={busy}
           />
         )}
