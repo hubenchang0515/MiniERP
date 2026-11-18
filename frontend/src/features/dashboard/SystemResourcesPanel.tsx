@@ -11,11 +11,11 @@ import { Cpu, MemoryStick, HardDrive, type LucideIcon } from "lucide-react";
 
 const tones = {
   normal:
-    "[--resource-color:#00c895] [--resource-text:#009d75] dark:[--resource-text:#5ce0b6]",
+    "[--resource-color:var(--brand-chart)] [--resource-text:var(--accent)]",
   warning:
     "[--resource-color:#ffb900] [--resource-text:#df7800] dark:[--resource-text:#ffd477]",
   high: "[--resource-color:#ef655e] [--resource-text:#cf443e] dark:[--resource-text:#ffaaa6]",
-  unavailable: "[--resource-color:#a2adb9] [--resource-text:#748077]",
+  unavailable: "[--resource-color:#a2adb9] [--resource-text:var(--muted)]",
 };
 
 function bytes(value: number) {
