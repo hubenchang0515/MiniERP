@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -111,8 +112,10 @@ func (h *Handler) AIKeys(c *gin.Context) {
 		return
 	}
 	u := c.MustGet("user").(model.User)
-	q := h.Service.ReadDB().WithContext(c.Request.Context()).Model(&model.AIKey{}).Joins("JOIN users ON users.id = ai_keys.user_id")
-	if c.Query("all") == "true" {
+	db := h.Service.ReadDB().WithContext(c.Request.Context())
+	q := db.Model(&model.AIKey{}).Joins("JOIN users ON users.id = ai_keys.user_id")
+	all := c.Query("all") == "true"
+	if all {
 		if !systemAdmin(u) {
 			RespondError(c, service.Fail(403, "forbidden", "仅系统管理员可查看全部密钥"))
 			return
@@ -136,7 +139,16 @@ func (h *Handler) AIKeys(c *gin.Context) {
 		RespondError(c, err)
 		return
 	}
-	c.JSON(200, gin.H{"items": items, "total": total, "page": page, "pageSize": size})
+	result := gin.H{"items": items, "total": total, "page": page, "pageSize": size}
+	if !all {
+		count, err := service.ActiveAIKeyCount(db, u.ID)
+		if err != nil {
+			RespondError(c, err)
+			return
+		}
+		result["activeCount"], result["limit"] = count, service.MaxActiveAIKeys
+	}
+	c.JSON(200, result)
 }
 func systemAdmin(u model.User) bool {
 	for _, r := range u.Roles {
@@ -181,11 +193,9 @@ func (h *Handler) ChangeAIKey(c *gin.Context) {
 	}
 }
 
-var aiRequestSequence atomic.Uint64
-
 func (h *Handler) AIProxy(c *gin.Context) {
 	started := time.Now()
-	requestID := fmt.Sprintf("%x-%x", started.UnixNano(), aiRequestSequence.Add(1))
+	requestID := rand.Text()
 	c.Header("X-Request-ID", requestID)
 	path := c.Param("path")
 	allowed := (c.Request.Method == "GET" && path == "/models") || (c.Request.Method == "POST" && (path == "/chat/completions" || path == "/embeddings" || path == "/responses"))
@@ -257,6 +267,45 @@ func (h *Handler) AIProxy(c *gin.Context) {
 		RespondError(c, err)
 		return
 	}
+	target, err := url.Parse(mapping.Resource.BaseURL)
+	if err != nil {
+		RespondError(c, err)
+		return
+	}
+	quota, err := h.Service.ReserveAIQuota(c.Request.Context(), requestID, key, mapping, time.Time{})
+	if err != nil {
+		var blocked *service.Error
+		if errors.As(err, &blocked) && blocked.Status == http.StatusForbidden {
+			c.JSON(blocked.Status, gin.H{"error": gin.H{
+				"message": blocked.Message, "type": blocked.Code, "code": blocked.Code,
+			}})
+			return
+		}
+		RespondError(c, err)
+		return
+	}
+	var observer *aiUsageObserver
+	var quotaRequestID string
+	if quota != nil {
+		quotaRequestID = quota.RequestID
+		defer func() {
+			var usage *service.AITokenUsage
+			if observer != nil {
+				usage = observer.finish()
+			}
+			ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 5*time.Second)
+			defer cancel()
+			if err := h.Service.SettleAIQuota(ctx, quotaRequestID, usage); err != nil {
+				log.Printf("ai quota settlement pending request_id=%s: %v", quotaRequestID, err)
+			}
+		}()
+		if path == "/chat/completions" && !mapping.Pricing.SkipStreamUsage {
+			if err := requestChatStreamUsage(payload); err != nil {
+				RespondError(c, err)
+				return
+			}
+		}
+	}
 	payload["model"], _ = json.Marshal(mapping.ExternalID)
 	body, err = json.Marshal(payload)
 	if err != nil {
@@ -270,11 +319,6 @@ func (h *Handler) AIProxy(c *gin.Context) {
 		RespondError(c, err)
 		return
 	}
-	target, err := url.Parse(mapping.Resource.BaseURL)
-	if err != nil {
-		RespondError(c, err)
-		return
-	}
 	clientCtx := c.Request.Context()
 	idleTimeout := h.Service.Config.ProxyIdleTimeout()
 	ctx, activity := watchProxyActivity(clientCtx, idleTimeout)
@@ -285,7 +329,7 @@ func (h *Handler) AIProxy(c *gin.Context) {
 	c.Request = c.Request.WithContext(ctx)
 	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Time{})
 	timing := &service.AIProxyTiming{}
-	proxy := httputil.ReverseProxy{Transport: &service.AIProviderTransport{Service: h.Service, ResourceID: mapping.ResourceID, Body: body, Inference: true, Timing: timing}, FlushInterval: -1, ErrorLog: log.New(io.Discard, "", 0), Rewrite: func(r *httputil.ProxyRequest) {
+	proxy := httputil.ReverseProxy{Transport: &service.AIProviderTransport{Service: h.Service, ResourceID: mapping.ResourceID, Body: body, Inference: true, Timing: timing, QuotaRequestID: quotaRequestID}, FlushInterval: -1, ErrorLog: log.New(io.Discard, "", 0), Rewrite: func(r *httputil.ProxyRequest) {
 		r.SetURL(target)
 		r.Out.URL.Path = strings.TrimRight(target.Path, "/") + path
 		r.Out.URL.RawPath = ""
@@ -337,14 +381,39 @@ func (h *Handler) AIProxy(c *gin.Context) {
 		// ReverseProxy adds provider headers to the existing response headers.
 		// Keep the locally assigned ID and discard the provider's ID.
 		r.Header.Del("X-Request-ID")
-		if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "text/event-stream") {
+		stream := strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "text/event-stream")
+		if stream {
 			r.Header.Set("Cache-Control", "no-cache")
 			r.Header.Set("X-Accel-Buffering", "no")
 		}
-		r.Body = &observedProxyBody{ReadCloser: r.Body, readErr: &streamErr, touch: activity.touch}
+		observed := &observedProxyBody{ReadCloser: r.Body, readErr: &streamErr, touch: activity.touch}
+		if quota != nil && r.StatusCode >= 200 && r.StatusCode < 300 {
+			observer = observeAIUsage(path, stream)
+			observed.observe = observer.observe
+		}
+		r.Body = observed
 		local := time.Since(started) - timing.UpstreamHeaders
 		r.Header.Set("Server-Timing", fmt.Sprintf("gateway;dur=%.2f, upstream_headers;dur=%.2f, attempts;desc=\"%d\"", float64(local)/float64(time.Millisecond), float64(timing.UpstreamHeaders)/float64(time.Millisecond), timing.Attempts))
 		return nil
 	}}
 	proxy.ServeHTTP(&proxyStreamWriter{ResponseWriter: c.Writer, idle: idleTimeout, timedOut: &writeTimedOut}, c.Request)
+}
+
+func requestChatStreamUsage(payload map[string]json.RawMessage) error {
+	var stream bool
+	if json.Unmarshal(payload["stream"], &stream) != nil || !stream {
+		return nil
+	}
+	options := make(map[string]json.RawMessage)
+	if existing, ok := payload["stream_options"]; ok {
+		if err := json.Unmarshal(existing, &options); err != nil {
+			return service.Fail(400, "invalid_request", "stream_options 必须是 JSON 对象")
+		}
+		if options == nil {
+			options = make(map[string]json.RawMessage)
+		}
+	}
+	options["include_usage"] = json.RawMessage("true")
+	payload["stream_options"], _ = json.Marshal(options)
+	return nil
 }

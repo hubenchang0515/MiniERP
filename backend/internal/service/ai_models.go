@@ -104,16 +104,26 @@ func (s *Service) FetchAIModels(ctx context.Context, in AIModelListInput) ([]str
 }
 
 type AIModelInput struct {
-	InternalID string `json:"internalId"`
-	ResourceID uint   `json:"resourceId"`
-	ExternalID string `json:"externalId"`
-	Enabled    bool   `json:"enabled"`
+	InternalID string                `json:"internalId"`
+	ResourceID uint                  `json:"resourceId"`
+	ExternalID string                `json:"externalId"`
+	Enabled    bool                  `json:"enabled"`
+	Pricing    *model.AIModelPricing `json:"pricing"`
 }
 
 func (s *Service) SaveAIModel(id uint, in AIModelInput) (model.AIModel, error) {
 	var m model.AIModel
 	if !validAIModelID(in.InternalID) || !validAIModelID(in.ExternalID) || in.ResourceID == 0 {
 		return m, Fail(400, "validation", "请选择供应商，模型 ID 必须为 1–256 字节且不包含空白或控制字符")
+	}
+	if in.Pricing != nil {
+		p := in.Pricing
+		if p.InputPerMillion < 0 || p.InputPerMillion > MaxAIPoints ||
+			p.OutputPerMillion < 0 || p.OutputPerMillion > MaxAIPoints ||
+			p.ReservePoints < 0 || p.ReservePoints > MaxAIPoints ||
+			(p.ReservePoints == 0 && (p.InputPerMillion > 0 || p.OutputPerMillion > 0)) {
+			return m, Fail(400, "invalid_pricing", "模型单价和预留须为有效的整数积分，设置价格时须预留至少 1 积分")
+		}
 	}
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		var resource model.AIResource
@@ -129,6 +139,9 @@ func (s *Service) SaveAIModel(id uint, in AIModelInput) (model.AIModel, error) {
 			}
 		}
 		m.InternalID, m.ResourceID, m.ExternalID, m.Enabled = in.InternalID, in.ResourceID, in.ExternalID, in.Enabled
+		if in.Pricing != nil {
+			m.Pricing = *in.Pricing
+		}
 		return tx.Save(&m).Error
 	})
 	if errors.Is(err, gorm.ErrDuplicatedKey) {

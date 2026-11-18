@@ -131,6 +131,14 @@ type AIKeyInput struct {
 	Name string `json:"name"`
 }
 
+const MaxActiveAIKeys = 10
+
+func ActiveAIKeyCount(db *gorm.DB, userID uint) (int64, error) {
+	var count int64
+	err := db.Model(&model.AIKey{}).Where("user_id = ? AND enabled = ?", userID, true).Count(&count).Error
+	return count, err
+}
+
 func (s *Service) CreateAIKey(userID uint, in AIKeyInput) (model.AIKey, string, error) {
 	var k model.AIKey
 	in.Name = strings.TrimSpace(in.Name)
@@ -152,10 +160,20 @@ func (s *Service) CreateAIKey(userID uint, in AIKeyInput) (model.AIKey, string, 
 		if !u.Enabled || !Can(u, "ai:use") {
 			return Fail(403, "forbidden", "当前账号没有使用 AI 的权限")
 		}
+		count, err := ActiveAIKeyCount(tx, userID)
+		if err != nil {
+			return err
+		}
+		if count >= MaxActiveAIKeys {
+			return Fail(409, "ai_key_limit", "最多可持有 10 个有效密钥，请先撤销一个再创建")
+		}
 		k = model.AIKey{Name: in.Name, UserID: u.ID, TokenHash: hash, Prefix: raw[:16] + "…", Enabled: true}
 		return tx.Create(&k).Error
 	})
-	return k, raw, Normalize(err)
+	if err != nil {
+		return model.AIKey{}, "", Normalize(err)
+	}
+	return k, raw, nil
 }
 func (s *Service) ChangeAIKey(id, owner uint, rotate bool) (string, error) {
 	if rotate && owner == 0 {

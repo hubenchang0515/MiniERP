@@ -1,6 +1,10 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import { aiPages } from "../features/ai/paths";
+import {
+  aiAllocationsPath,
+  aiMyResourcesPath,
+  aiPages,
+} from "../features/ai/paths";
 export function safeReturnTo(value: string | null) {
   if (
     !value ||
@@ -41,11 +45,12 @@ export function authorizedReturnTo(
       new URL(target, "https://minierp.local").pathname,
     ).replace(/\/+$/, "") || "/";
   if (
-    ["/", "/dashboard", "/account/password", "/ai", "/ai/allocations"].includes(
+    ["/", "/dashboard", "/account/password", "/ai", aiMyResourcesPath].includes(
       path,
     )
   )
     return target;
+  if (path === aiAllocationsPath && !systemAdmin) return aiMyResourcesPath;
   if (aiPages.some((page) => page.path === path))
     return systemAdmin ? target : "/dashboard";
   const routes = [

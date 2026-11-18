@@ -42,7 +42,14 @@ describe("returnTo", () => {
       expect(authorizedReturnTo(path, ["ai:use"], true)).toBe(path);
       expect(authorizedReturnTo(path, ["ai:use"])).toBe("/dashboard");
     }
-    expect(authorizedReturnTo("/ai/allocations", [])).toBe("/ai/allocations");
+    expect(authorizedReturnTo("/ai/allocations", [], true)).toBe(
+      "/ai/allocations",
+    );
+    expect(authorizedReturnTo("/ai/allocations", [])).toBe("/ai/my-resources");
+    expect(authorizedReturnTo("/ai/my-resources", [])).toBe("/ai/my-resources");
+    expect(authorizedReturnTo("/ai/my-resources", [], true)).toBe(
+      "/ai/my-resources",
+    );
     expect(authorizedReturnTo("/ai/provider-keys?page=2", [], true)).toBe(
       "/ai/provider-keys?page=2",
     );

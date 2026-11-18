@@ -37,3 +37,38 @@ func TestMigrateAndReopen(t *testing.T) {
 		t.Fatalf("persisted: %+v %v", found, err)
 	}
 }
+
+func TestAddAIQuotaToExistingDatabase(t *testing.T) {
+	dir := t.TempDir()
+	db, err := database.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool, _ := db.DB()
+	defer pool.Close()
+	resource := model.AIResource{Name: "existing", BaseURL: "https://example.com/v1", Enabled: true}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatal(err)
+	}
+	mapping := model.AIModel{InternalID: "existing", ExternalID: "provider", ResourceID: resource.ID, Enabled: true}
+	if err := db.Create(&mapping).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, column := range []string{"pricing_input_per_million", "pricing_output_per_million", "pricing_reserve_points", "pricing_skip_stream_usage"} {
+		if err := db.Exec("ALTER TABLE ai_models DROP COLUMN " + column).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	pool.Close()
+	db, err = database.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool, _ = db.DB()
+	defer pool.Close()
+	var existing model.AIModel
+	if err := db.First(&existing, mapping.ID).Error; err != nil || existing.InternalID != "existing" ||
+		existing.ResourceID != resource.ID || !existing.Enabled || existing.Pricing.ReservePoints != 0 {
+		t.Fatalf("the existing mapping changed: %+v, %v", existing, err)
+	}
+}

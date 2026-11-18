@@ -2,21 +2,26 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type AIProviderTransport struct {
-	Service    *Service
-	ResourceID uint
-	Body       []byte
-	Inference  bool
-	Timing     *AIProxyTiming
+	Service        *Service
+	ResourceID     uint
+	Body           []byte
+	Inference      bool
+	Timing         *AIProxyTiming
+	QuotaRequestID string
 }
 
 type AIProxyTiming struct {
@@ -70,6 +75,16 @@ func (t *AIProviderTransport) RoundTrip(req *http.Request) (*http.Response, erro
 			out.Body = io.NopCloser(bytes.NewReader(t.Body))
 			out.ContentLength = int64(len(t.Body))
 		}
+		var connected atomic.Bool
+		if t.QuotaRequestID != "" {
+			if err := t.Service.MarkAIQuotaDispatched(req.Context(), t.QuotaRequestID); err != nil {
+				_ = lease.Finish("", nil, false)
+				return nil, err
+			}
+			out = out.WithContext(httptrace.WithClientTrace(out.Context(), &httptrace.ClientTrace{
+				GotConn: func(httptrace.GotConnInfo) { connected.Store(true) },
+			}))
+		}
 		started := time.Now()
 		response, err := aiHTTPTransport.RoundTrip(out)
 		if t.Timing != nil {
@@ -77,6 +92,9 @@ func (t *AIProviderTransport) RoundTrip(req *http.Request) (*http.Response, erro
 			t.Timing.UpstreamHeaders += time.Since(started)
 		}
 		if err != nil {
+			if !connected.Load() {
+				err = errors.Join(err, t.confirmQuotaRejection(req.Context()))
+			}
 			state := ""
 			var retryAt *time.Time
 			if lease.Probe {
@@ -94,6 +112,15 @@ func (t *AIProviderTransport) RoundTrip(req *http.Request) (*http.Response, erro
 			success := t.Inference && response.StatusCode >= 200 && response.StatusCode < 300
 			response.Body = &providerResponseBody{ReadCloser: response.Body, finish: func() error { return lease.Finish("", nil, success) }}
 			return response, nil
+		}
+		// Explicit rejection changes the accounting state before any retry or slow error body.
+		rejected := upstreamRejectedAIRequest(response.StatusCode)
+		if rejected {
+			if err := t.confirmQuotaRejection(req.Context()); err != nil {
+				response.Body.Close()
+				_ = lease.Finish("", nil, false)
+				return nil, err
+			}
 		}
 		// Error bodies are inspected locally and never returned to the caller.
 		started = time.Now()
@@ -114,6 +141,12 @@ func (t *AIProviderTransport) RoundTrip(req *http.Request) (*http.Response, erro
 			response.Header.Set("Retry-After", strconv.FormatInt(seconds, 10))
 		}
 		retryable := state != ""
+		if retryable && !rejected {
+			if err := t.confirmQuotaRejection(req.Context()); err != nil {
+				_ = lease.Finish("", nil, false)
+				return nil, err
+			}
+		}
 		if state == "" && lease.Probe {
 			state = lease.Key.State
 			next := time.Now().Add(5 * time.Minute)
@@ -128,6 +161,24 @@ func (t *AIProviderTransport) RoundTrip(req *http.Request) (*http.Response, erro
 		}
 	}
 	return last, nil
+}
+
+func upstreamRejectedAIRequest(status int) bool {
+	switch status {
+	case 400, 401, 402, 403, 404, 405, 413, 415, 422, 429:
+		return true
+	default:
+		return false
+	}
+}
+
+func (t *AIProviderTransport) confirmQuotaRejection(parent context.Context) error {
+	if t.QuotaRequestID == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
+	defer cancel()
+	return t.Service.MarkAIQuotaRejected(ctx, t.QuotaRequestID)
 }
 
 func providerFailure(status int, header http.Header, body []byte, now time.Time) (string, *time.Time) {

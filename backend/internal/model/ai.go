@@ -26,13 +26,21 @@ type AIProviderKey struct {
 }
 
 type AIModel struct {
-	ID         uint       `json:"id" gorm:"primaryKey"`
-	InternalID string     `json:"internalId" gorm:"uniqueIndex;not null"`
-	ResourceID uint       `json:"resourceId" gorm:"index;not null"`
-	ExternalID string     `json:"externalId"`
-	Enabled    bool       `json:"enabled"`
-	CreatedAt  time.Time  `json:"createdAt"`
-	Resource   AIResource `json:"-" gorm:"foreignKey:ResourceID"`
+	ID         uint           `json:"id" gorm:"primaryKey"`
+	InternalID string         `json:"internalId" gorm:"uniqueIndex;not null"`
+	ResourceID uint           `json:"resourceId" gorm:"index;not null"`
+	ExternalID string         `json:"externalId"`
+	Enabled    bool           `json:"enabled"`
+	CreatedAt  time.Time      `json:"createdAt"`
+	Resource   AIResource     `json:"-" gorm:"foreignKey:ResourceID"`
+	Pricing    AIModelPricing `json:"pricing" gorm:"embedded;embeddedPrefix:pricing_"`
+}
+
+type AIModelPricing struct {
+	InputPerMillion  int64 `json:"inputPerMillion" gorm:"not null;default:0"`
+	OutputPerMillion int64 `json:"outputPerMillion" gorm:"not null;default:0"`
+	ReservePoints    int64 `json:"reservePoints" gorm:"not null;default:0"`
+	SkipStreamUsage  bool  `json:"skipStreamUsage" gorm:"not null;default:false"`
 }
 type AIKey struct {
 	ID         uint       `json:"id" gorm:"primaryKey"`

@@ -34,6 +34,13 @@ export type ModelMapping = {
   resourceName: string;
   resourceEnabled: boolean;
   enabled: boolean;
+  pricing?: ModelPricing;
+};
+export type ModelPricing = {
+  inputPerMillion: number;
+  outputPerMillion: number;
+  reservePoints: number;
+  skipStreamUsage: boolean;
 };
 export type InternalKey = {
   id: number;
@@ -65,7 +72,7 @@ export const aiApi = {
       input,
     ),
   keys: (all = false, page = 1, q = "") =>
-    api<Page<InternalKey>>(
+    api<Page<InternalKey> & { activeCount?: number; limit?: number }>(
       `/ai/keys?all=${all}&page=${page}&pageSize=10&q=${encodeURIComponent(q)}`,
     ),
   providerKeys: (q = "", page = 1) =>
@@ -96,7 +103,7 @@ export const aiApi = {
     id: number | null,
     input: Pick<
       ModelMapping,
-      "internalId" | "externalId" | "resourceId" | "enabled"
+      "internalId" | "externalId" | "resourceId" | "enabled" | "pricing"
     >,
   ) =>
     api<ModelMapping>(

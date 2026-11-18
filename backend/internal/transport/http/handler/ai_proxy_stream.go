@@ -102,12 +102,16 @@ type observedProxyBody struct {
 	io.ReadCloser
 	readErr *error
 	touch   func()
+	observe func([]byte)
 }
 
 func (b *observedProxyBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
 	if n > 0 {
 		b.touch()
+		if b.observe != nil {
+			b.observe(p[:n])
+		}
 	}
 	if err != nil && err != io.EOF {
 		*b.readErr = err

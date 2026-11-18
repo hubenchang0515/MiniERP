@@ -44,6 +44,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	s := &service.Service{DB: db, Reader: reader, Config: c}
+	if err := s.RecoverAIQuota(ctx); err != nil {
+		log.Fatalf("恢复 AI 周额度账本失败: %v", err)
+	}
 	s.StartUsageWriter()
 	defer s.StopUsageWriter()
 	s.StartResourceMonitor(ctx)

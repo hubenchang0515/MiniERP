@@ -27,9 +27,22 @@ function MappingDialog({
   onSaved: () => void;
 }) {
   const listId = useId();
+  const streamUsageHintId = useId();
   const [internalId, setInternalId] = useState(mapping?.internalId ?? "");
   const [externalId, setExternalId] = useState(mapping?.externalId ?? "");
   const [enabled, setEnabled] = useState(mapping?.enabled ?? true);
+  const [inputPrice, setInputPrice] = useState(
+    String(mapping?.pricing?.inputPerMillion ?? 0),
+  );
+  const [outputPrice, setOutputPrice] = useState(
+    String(mapping?.pricing?.outputPerMillion ?? 0),
+  );
+  const [reservePoints, setReservePoints] = useState(
+    String(mapping?.pricing?.reservePoints ?? 0),
+  );
+  const [skipStreamUsage, setSkipStreamUsage] = useState(
+    mapping?.pricing?.skipStreamUsage ?? false,
+  );
   const [resource, setResource] = useState<ResourceOption | null>(
     mapping
       ? {
@@ -74,6 +87,12 @@ function MappingDialog({
         externalId,
         resourceId: resource.id,
         enabled,
+        pricing: {
+          inputPerMillion: Number(inputPrice),
+          outputPerMillion: Number(outputPrice),
+          reservePoints: Number(reservePoints),
+          skipStreamUsage,
+        },
       });
       onSaved();
     } catch (e) {
@@ -152,6 +171,67 @@ function MappingDialog({
           />
           启用映射
         </label>
+        <fieldset
+          disabled={busy || fetching}
+          className="grid gap-3 rounded-md border border-line p-3"
+        >
+          <legend className="px-1 text-[13px] font-medium">积分价格</legend>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="每百万输入 Token（积分）" required>
+              <Input
+                type="number"
+                min={0}
+                max={1_000_000_000}
+                step={1}
+                required
+                value={inputPrice}
+                onChange={(e) => setInputPrice(e.target.value)}
+              />
+            </FormField>
+            <FormField label="每百万输出 Token（积分）" required>
+              <Input
+                type="number"
+                min={0}
+                max={1_000_000_000}
+                step={1}
+                required
+                value={outputPrice}
+                onChange={(e) => setOutputPrice(e.target.value)}
+              />
+            </FormField>
+          </div>
+          <FormField
+            label="单次预留（积分）"
+            hint="设置单价时至少预留 1 积分。三项均填 0 表示未定价。"
+            required
+          >
+            <Input
+              type="number"
+              min={Number(inputPrice) > 0 || Number(outputPrice) > 0 ? 1 : 0}
+              max={1_000_000_000}
+              step={1}
+              required
+              value={reservePoints}
+              onChange={(e) => setReservePoints(e.target.value)}
+            />
+          </FormField>
+          <label className="flex items-center gap-2 text-[13px]">
+            <input
+              type="checkbox"
+              className="size-4 shrink-0 accent-accent"
+              aria-describedby={streamUsageHintId}
+              checked={!skipStreamUsage}
+              onChange={(e) => setSkipStreamUsage(!e.target.checked)}
+            />
+            主动请求聊天流式用量
+          </label>
+          <p
+            id={streamUsageHintId}
+            className="pl-6 text-[12px] leading-relaxed text-muted"
+          >
+            若供应商不支持该参数，可以取消勾选。
+          </p>
+        </fieldset>
         <FormActions>
           <Button
             variant="secondary"
@@ -255,6 +335,7 @@ export default function AIModelsPanel() {
               <TableHeader>内部模型 ID</TableHeader>
               <TableHeader>供应商</TableHeader>
               <TableHeader>外部模型 ID</TableHeader>
+              <TableHeader>积分价格</TableHeader>
               <TableHeader>状态</TableHeader>
               <TableHeader>操作</TableHeader>
             </tr>
@@ -268,6 +349,11 @@ export default function AIModelsPanel() {
                 <TableCell>{m.resourceName}</TableCell>
                 <TableCell>
                   <code>{m.externalId}</code>
+                </TableCell>
+                <TableCell>
+                  {m.pricing && m.pricing.reservePoints > 0
+                    ? "已定价"
+                    : "未定价"}
                 </TableCell>
                 <TableCell>
                   <Badge>

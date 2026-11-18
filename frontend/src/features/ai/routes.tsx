@@ -1,16 +1,23 @@
 import { Navigate, Route } from "react-router-dom";
 import { useAuth } from "../../app/AuthContext";
 import AIPage from "./AIPage";
-import { aiPages, type AISection } from "./paths";
+import { aiMyResourcesPath, aiPages, type AISection } from "./paths";
 
 function AIHomeRedirect() {
   const admin = useAuth().user?.roles.some((role) => role.system) ?? false;
-  return <Navigate replace to={admin ? "/ai/providers" : "/ai/allocations"} />;
+  return <Navigate replace to={admin ? "/ai/providers" : aiMyResourcesPath} />;
 }
 
 function AISectionPage({ section }: { section: AISection }) {
   const admin = useAuth().user?.roles.some((role) => role.system) ?? false;
-  if (section !== "keys" && !admin) return <Navigate replace to="/403" />;
+  if (!admin && section !== "myResources") {
+    return (
+      <Navigate
+        replace
+        to={section === "allocations" ? aiMyResourcesPath : "/403"}
+      />
+    );
+  }
   return <AIPage section={section} />;
 }
 

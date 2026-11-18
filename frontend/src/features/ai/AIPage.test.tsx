@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import {
   MemoryRouter,
   Routes,
@@ -9,6 +15,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { aiRoutes } from "./routes";
 import { aiApi } from "./api";
+import { quotaApi } from "./quotaApi";
 const auth = vi.hoisted(() => ({
   user: { id: 1, roles: [{ system: true }], permissions: ["ai:use"] },
 }));
@@ -36,6 +43,36 @@ vi.mock("./api", () => ({
     deleteProviderKey: vi.fn(),
   },
 }));
+vi.mock("./quotaApi", () => ({
+  quotaApi: {
+    mine: vi.fn(),
+    usage: vi.fn(),
+    settings: vi.fn(),
+    setEnabled: vi.fn(),
+    setWeekly: vi.fn(),
+    grant: vi.fn(),
+    users: vi.fn(),
+  },
+}));
+const quotaBalance = {
+  enabled: false,
+  configured: false,
+  week: "2026-11-16",
+  resetsAt: "2026-11-23T00:00:00+08:00",
+  weeklyPoints: 0,
+  addedMicros: "0",
+  usedMicros: "0",
+  reservedMicros: "0",
+  availableMicros: "0",
+  totalUsage: { inputTokens: "0", outputTokens: "0", chargedMicros: "0" },
+};
+const quotaUser = {
+  ...quotaBalance,
+  userId: 2,
+  username: "member",
+  displayName: "张三",
+};
+const quotaPage = { items: [quotaUser], total: 1, page: 1, pageSize: 10 };
 const resource = {
   id: 1,
   name: "外部服务",
@@ -91,6 +128,15 @@ describe("AI resources and keys", () => {
     auth.user.roles = [{ system: true }];
     auth.user.id = 1;
     auth.user.permissions = ["ai:use"];
+    vi.mocked(quotaApi.mine).mockResolvedValue(quotaBalance);
+    vi.mocked(quotaApi.usage).mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 10,
+    });
+    vi.mocked(quotaApi.settings).mockResolvedValue({ enabled: false });
+    vi.mocked(quotaApi.users).mockResolvedValue(quotaPage);
     vi.mocked(aiApi.models).mockResolvedValue({
       items: [],
       total: 0,
@@ -133,7 +179,8 @@ describe("AI resources and keys", () => {
     ["/ai/providers", "供应商", "外部服务"],
     ["/ai/provider-keys", "密钥管理", "primary"],
     ["/ai/models", "模型映射", "暂无模型映射"],
-    ["/ai/allocations", "资源分配", "工作 KEY"],
+    ["/ai/allocations", "资源分配", "张三"],
+    ["/ai/my-resources", "我的资源", "我的 AI 周额度"],
   ])("opens and reloads the same child at %s", async (path, label, text) => {
     const view = renderAI(path);
     await screen.findByText(text);
@@ -178,10 +225,16 @@ describe("AI resources and keys", () => {
     vi.mocked(aiApi.createKey).mockResolvedValue({
       secret: "mierp_test_one_time_secret",
     });
+    vi.mocked(aiApi.keys).mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 10,
+    });
     renderAI();
     await screen.findByText("外部服务");
-    fireEvent.click(screen.getByRole("link", { name: "资源分配" }));
-    await screen.findByText("工作 KEY");
+    fireEvent.click(screen.getByRole("link", { name: "我的资源" }));
+    await screen.findByText("暂无密钥");
     expect(
       screen.queryByRole("button", { name: "重新生成" }),
     ).not.toBeInTheDocument();
@@ -221,6 +274,34 @@ describe("AI resources and keys", () => {
       "mierp_rotated",
     );
     expect(aiApi.rotate).toHaveBeenCalledWith(1);
+  });
+  it("disables key creation at capacity and re-enables it after revocation", async () => {
+    auth.user.id = 2;
+    vi.mocked(aiApi.keys)
+      .mockResolvedValueOnce({
+        items: [key],
+        total: 10,
+        page: 1,
+        pageSize: 10,
+        activeCount: 10,
+        limit: 10,
+      })
+      .mockResolvedValue({
+        items: [{ ...key, enabled: false }],
+        total: 10,
+        page: 1,
+        pageSize: 10,
+        activeCount: 9,
+        limit: 10,
+      });
+    vi.mocked(aiApi.revoke).mockResolvedValue(undefined);
+    renderAI("/ai/my-resources");
+    await screen.findByText("有效密钥 10 / 10");
+    expect(screen.getByRole("button", { name: "生成密钥" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "撤销" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认操作" }));
+    await screen.findByText("有效密钥 9 / 10");
+    expect(screen.getByRole("button", { name: "生成密钥" })).toBeEnabled();
   });
   it("edits supplier metadata without including credentials", async () => {
     vi.mocked(aiApi.saveResource).mockResolvedValue(resource);
@@ -291,6 +372,18 @@ describe("AI resources and keys", () => {
     );
     const supplier = screen.getByRole("combobox", { name: "供应商" });
     expect(supplier).toHaveValue("外部服务");
+    const inputPrice = screen.getByRole("spinbutton", {
+      name: "每百万输入 Token（积分）",
+    });
+    const outputPrice = screen.getByRole("spinbutton", {
+      name: "每百万输出 Token（积分）",
+    });
+    const reserve = screen.getByRole("spinbutton", {
+      name: "单次预留（积分）",
+    });
+    expect(inputPrice).toHaveValue(0);
+    expect(outputPrice).toHaveValue(0);
+    expect(reserve).toHaveValue(0);
     fireEvent.click(screen.getByRole("button", { name: "获取上游模型" }));
     await screen.findByText(/已获取 1 个模型/);
     expect(aiApi.upstreamModels).toHaveBeenCalledWith({ resourceId: 1 });
@@ -309,6 +402,9 @@ describe("AI resources and keys", () => {
     fireEvent.click(supplier);
     fireEvent.click(await screen.findByRole("option", { name: "第二供应商" }));
     expect(supplier).toHaveValue("第二供应商");
+    fireEvent.change(inputPrice, { target: { value: "1000" } });
+    fireEvent.change(outputPrice, { target: { value: "4000" } });
+    fireEvent.change(reserve, { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() =>
       expect(aiApi.saveModel).toHaveBeenCalledWith(4, {
@@ -316,6 +412,12 @@ describe("AI resources and keys", () => {
         externalId: "second-model",
         resourceId: 2,
         enabled: true,
+        pricing: {
+          inputPerMillion: 1000,
+          outputPerMillion: 4000,
+          reservePoints: 5,
+          skipStreamUsage: false,
+        },
       }),
     );
     expect(aiApi.saveResource).not.toHaveBeenCalled();
@@ -378,17 +480,19 @@ describe("AI resources and keys", () => {
       expect(aiApi.resources).toHaveBeenLastCalledWith("example", 1),
     );
     fireEvent.click(screen.getByRole("link", { name: "资源分配" }));
-    await screen.findByText("工作 KEY");
-    fireEvent.change(screen.getByRole("textbox", { name: "搜索密钥" }), {
+    await screen.findByText("张三");
+    fireEvent.change(screen.getByRole("textbox", { name: "搜索用户" }), {
       target: { value: "member" },
     });
     fireEvent.click(screen.getByRole("button", { name: "搜索" }));
     await waitFor(() =>
-      expect(aiApi.keys).toHaveBeenLastCalledWith(true, 1, "member"),
+      expect(quotaApi.users).toHaveBeenLastCalledWith("member", 1),
     );
-    fireEvent.click(screen.getByLabelText("只看我的"));
+    expect(aiApi.keys).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("link", { name: "我的资源" }));
+    await screen.findByText("我的 AI 周额度");
     await waitFor(() =>
-      expect(aiApi.keys).toHaveBeenLastCalledWith(false, 1, "member"),
+      expect(aiApi.keys).toHaveBeenLastCalledWith(false, 1, ""),
     );
     fireEvent.click(screen.getByRole("link", { name: "模型映射" }));
     await screen.findByText("暂无模型映射");
@@ -463,6 +567,121 @@ describe("AI resources and keys", () => {
     );
     expect(aiApi.saveResource).not.toHaveBeenCalled();
     expect(aiApi.createKey).not.toHaveBeenCalled();
+  });
+  it("sets and supplements a selected user's weekly allowance before enabling enforcement", async () => {
+    vi.mocked(quotaApi.setEnabled).mockResolvedValue(undefined);
+    vi.mocked(quotaApi.setWeekly).mockResolvedValue(undefined);
+    vi.mocked(quotaApi.grant).mockResolvedValue(undefined);
+    vi.mocked(quotaApi.users)
+      .mockResolvedValueOnce(quotaPage)
+      .mockResolvedValue({
+        ...quotaPage,
+        items: [
+          {
+            ...quotaUser,
+            configured: true,
+            weeklyPoints: 50,
+            availableMicros: "50000000",
+          },
+        ],
+      });
+    renderAI("/ai/allocations");
+    await screen.findByText("额度管理未启用");
+    expect(quotaApi.mine).not.toHaveBeenCalled();
+    expect(aiApi.keys).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("region", { name: "用量明细" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "生成密钥" }),
+    ).not.toBeInTheDocument();
+    const row = await screen.findByRole("row", { name: /张三/ });
+    expect(within(row).getByText("未分配")).toBeInTheDocument();
+    expect(
+      within(row).getByRole("button", { name: "补发额度" }),
+    ).toBeDisabled();
+    fireEvent.click(within(row).getByRole("button", { name: "设置周额度" }));
+    const weekly = within(screen.getByRole("dialog", { name: "设置周额度" }));
+    expect(weekly.queryByLabelText("补发原因")).not.toBeInTheDocument();
+    fireEvent.change(
+      weekly.getByRole("spinbutton", { name: "每周额度（积分）" }),
+      {
+        target: { value: "50" },
+      },
+    );
+    fireEvent.click(weekly.getByRole("button", { name: "保存周额度" }));
+    await screen.findByText("已保存周额度");
+    const updated = await screen.findByRole("row", { name: /张三.*50/ });
+    fireEvent.click(within(updated).getByRole("button", { name: "补发额度" }));
+    const grant = within(screen.getByRole("dialog", { name: "补发本周额度" }));
+    expect(grant.queryByLabelText("每周额度（积分）")).not.toBeInTheDocument();
+    fireEvent.change(
+      grant.getByRole("spinbutton", { name: "本周补发（积分）" }),
+      {
+        target: { value: "10" },
+      },
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "补发原因" }), {
+      target: { value: "项目试用" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "补发积分" }));
+    await screen.findByText("已补发本周积分");
+    expect(quotaApi.setWeekly).toHaveBeenCalledWith(2, 50);
+    expect(quotaApi.grant).toHaveBeenCalledWith(2, 10, "项目试用");
+    fireEvent.click(screen.getByRole("button", { name: "启用额度管理" }));
+    await waitFor(() => expect(quotaApi.setEnabled).toHaveBeenCalledWith(true));
+  });
+  it("shows personal usage and hides allocation controls from ordinary users", async () => {
+    auth.user.roles = [{ system: false }];
+    vi.mocked(quotaApi.mine).mockResolvedValue({
+      ...quotaBalance,
+      totalUsage: {
+        inputTokens: "3040",
+        outputTokens: "520",
+        chargedMicros: "7800000",
+      },
+    });
+    vi.mocked(quotaApi.usage).mockResolvedValue({
+      items: [
+        {
+          requestId: "request-1",
+          model: "chat-default",
+          week: quotaBalance.week,
+          status: "estimated",
+          inputTokens: null,
+          outputTokens: null,
+          reservedMicros: "1200000",
+          chargedMicros: "1200000",
+          createdAt: "2026-11-18T12:00:00+08:00",
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      total: 1,
+    });
+    renderAI("/ai/allocations");
+    await screen.findByText("本周可用");
+    expect(screen.getByText("3,560")).toBeInTheDocument();
+    expect(screen.getByText("7.8")).toBeInTheDocument();
+    expect(screen.getByTestId("current-path")).toHaveTextContent(
+      "/ai/my-resources",
+    );
+    expect(quotaApi.settings).not.toHaveBeenCalled();
+    expect(aiApi.keys).toHaveBeenCalledWith(false, 1, "");
+    expect(
+      screen.queryByRole("button", { name: "设置周额度" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "启用额度管理" }),
+    ).not.toBeInTheDocument();
+    const usage = screen.getByRole("region", { name: "用量明细" });
+    expect(await within(usage).findByText("按预留结算")).toBeInTheDocument();
+    expect(within(usage).getByText("1.2")).toBeInTheDocument();
+    const keyRow = await screen.findByRole("row", { name: /工作 KEY/ });
+    expect(
+      keyRow.compareDocumentPosition(usage) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
   it("shows supplier-key health and preserves an existing key when editing without a secret", async () => {
     vi.mocked(aiApi.providerKeys).mockResolvedValue({
