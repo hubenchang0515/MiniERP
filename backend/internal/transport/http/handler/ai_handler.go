@@ -11,8 +11,8 @@ import (
 	"gorm.io/gorm"
 	"io"
 	"log"
-	"minierp/internal/model"
-	"minierp/internal/service"
+	"minioa/internal/model"
+	"minioa/internal/service"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -228,7 +228,7 @@ func (h *Handler) AIProxy(c *gin.Context) {
 		}
 		items := make([]entry, 0, len(models))
 		for _, m := range models {
-			items = append(items, entry{ID: m.InternalID, Object: "model", Created: m.CreatedAt.Unix(), OwnedBy: "minierp"})
+			items = append(items, entry{ID: m.InternalID, Object: "model", Created: m.CreatedAt.Unix(), OwnedBy: "minioa"})
 		}
 		c.JSON(200, gin.H{"object": "list", "data": items})
 		return

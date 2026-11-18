@@ -55,8 +55,8 @@ type fileConfig struct {
 }
 
 func Load(args []string, getenv func(string) string, out io.Writer) (Config, error) {
-	c := Config{Addr: "0.0.0.0:8080", DataDir: "./data", JWTSecret: "minierp-insecure-default-secret-change-me", JWTTTL: 168 * time.Hour, SecretSource: "内置默认值"}
-	fs := flag.NewFlagSet("minierp", flag.ContinueOnError)
+	c := Config{Addr: "0.0.0.0:8080", DataDir: "./data", JWTSecret: "minioa-insecure-default-secret-change-me", JWTTTL: 168 * time.Hour, SecretSource: "内置默认值"}
+	fs := flag.NewFlagSet("minioa", flag.ContinueOnError)
 	fs.SetOutput(out)
 	path, addr, dir, secret, ttl := "", "", "", "", ""
 	idleTimeout := ""
@@ -88,7 +88,7 @@ func Load(args []string, getenv func(string) string, out io.Writer) (Config, err
 	fs.Visit(func(f *flag.Flag) { visited[f.Name] = true })
 	explicit := visited["c"] || visited["config"]
 	if !explicit {
-		path = getenv("MINIERP_CONFIG_FILE")
+		path = getenv("MINIOA_CONFIG_FILE")
 		explicit = path != ""
 	}
 	if path == "" {
@@ -129,23 +129,23 @@ func Load(args []string, getenv func(string) string, out io.Writer) (Config, err
 			c.AIMaxConcurrentRequests = *f.AI.MaxConcurrentRequests
 		}
 	}
-	if v := getenv("MINIERP_ADDR"); v != "" {
+	if v := getenv("MINIOA_ADDR"); v != "" {
 		c.Addr = v
 	}
-	if v := getenv("MINIERP_DATA_DIR"); v != "" {
+	if v := getenv("MINIOA_DATA_DIR"); v != "" {
 		c.DataDir = v
 	}
-	if v := getenv("MINIERP_JWT_SECRET"); v != "" {
+	if v := getenv("MINIOA_JWT_SECRET"); v != "" {
 		c.JWTSecret = v
 		c.SecretSource = "环境变量"
 	}
-	if v := getenv("MINIERP_JWT_TTL"); v != "" {
+	if v := getenv("MINIOA_JWT_TTL"); v != "" {
 		ttlValue = v
 	}
-	if v := getenv("MINIERP_AI_IDLE_TIMEOUT"); v != "" {
+	if v := getenv("MINIOA_AI_IDLE_TIMEOUT"); v != "" {
 		idleValue = v
 	}
-	if v := getenv("MINIERP_AI_MAX_CONCURRENT_REQUESTS"); v != "" && !visited["ai-max-concurrent-requests"] {
+	if v := getenv("MINIOA_AI_MAX_CONCURRENT_REQUESTS"); v != "" && !visited["ai-max-concurrent-requests"] {
 		c.AIMaxConcurrentRequests, err = strconv.Atoi(v)
 		if err != nil {
 			return c, fmt.Errorf("AI 最大并发转发数必须是正整数")

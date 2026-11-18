@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"minierp/internal/service"
+	"minioa/internal/service"
 )
 
 // Feed the observer in proxy read order. Decoding skips unrelated JSON fields

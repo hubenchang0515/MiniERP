@@ -6,10 +6,10 @@ import (
 	"flag"
 	"github.com/gin-gonic/gin"
 	"log"
-	"minierp/internal/config"
-	"minierp/internal/database"
-	"minierp/internal/service"
-	transport "minierp/internal/transport/http"
+	"minioa/internal/config"
+	"minioa/internal/database"
+	"minioa/internal/service"
+	transport "minioa/internal/transport/http"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,8 +25,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if os.Getenv("MINIERP_JWT_SECRET") == "" {
-		log.Printf("警告: 未设置 MINIERP_JWT_SECRET；实际密钥来源: %s。正式部署建议通过环境变量设置随机密钥。", c.SecretSource)
+	if os.Getenv("MINIOA_JWT_SECRET") == "" {
+		log.Printf("警告: 未设置 MINIOA_JWT_SECRET；实际密钥来源: %s。正式部署建议通过环境变量设置随机密钥。", c.SecretSource)
 	}
 	db, err := database.Open(c.DataDir)
 	if err != nil {
@@ -55,13 +55,17 @@ func main() {
 	go func() {
 		<-ctx.Done()
 		defer close(shutdownDone)
-		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		const waitForRequests = 10 * time.Second
+		shutdown, cancel := context.WithTimeout(context.Background(), waitForRequests)
 		defer cancel()
-		if err := server.Shutdown(shutdown); err != nil {
-			log.Print(err)
+		switch err := server.Shutdown(shutdown); {
+		case errors.Is(err, context.DeadlineExceeded):
+			log.Printf("MiniOA 关闭超时：等待现有 HTTP 请求结束超过 %s", waitForRequests)
+		case err != nil:
+			log.Printf("MiniOA 关闭服务失败：%v", err)
 		}
 	}()
-	log.Printf("MiniERP 已启动: http://%s；数据目录: %s", c.Addr, c.DataDir)
+	log.Printf("MiniOA 已启动: http://%s；数据目录: %s", c.Addr, c.DataDir)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}

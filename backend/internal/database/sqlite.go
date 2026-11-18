@@ -14,7 +14,7 @@ func Open(dir string) (*gorm.DB, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	db, err := gorm.Open(sqlite.Open(filepath.Join(dir, "mini-erp.db")+"?_txlock=immediate&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"), dbConfig())
+	db, err := gorm.Open(sqlite.Open(filepath.Join(dir, "mini-oa.db")+"?_txlock=immediate&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"), dbConfig())
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func dbConfig() *gorm.Config {
 // Readers use separate, query-only connections so a queued writer cannot occupy
 // every connection used by ordinary API reads. WAL exposes committed changes immediately.
 func OpenReader(dir string) (*gorm.DB, error) {
-	db, err := gorm.Open(sqlite.Open(filepath.Join(dir, "mini-erp.db")+"?mode=ro&_pragma=query_only(1)&_pragma=busy_timeout(5000)"), dbConfig())
+	db, err := gorm.Open(sqlite.Open(filepath.Join(dir, "mini-oa.db")+"?mode=ro&_pragma=query_only(1)&_pragma=busy_timeout(5000)"), dbConfig())
 	if err != nil {
 		return nil, err
 	}

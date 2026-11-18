@@ -16,10 +16,10 @@ try {
     Push-Location (Join-Path $root 'backend')
     try {
         $env:GOPROXY = 'off'
-        go build -mod=readonly -o (Join-Path $root 'backend/dev-minierp.exe') ./cmd/minierp
+        go build -mod=readonly -o (Join-Path $root 'backend/dev-minioa.exe') ./cmd/minioa
         if ($LASTEXITCODE -ne 0) { throw '后端构建失败；如缺少依赖，请先运行 .\scripts\install-deps.ps1。' }
     } finally { $env:GOPROXY = $oldProxy; Pop-Location }
-    $backend = Start-Process -FilePath (Join-Path $root 'backend/dev-minierp.exe') -WorkingDirectory $root -PassThru -WindowStyle Hidden
+    $backend = Start-Process -FilePath (Join-Path $root 'backend/dev-minioa.exe') -WorkingDirectory $root -PassThru -WindowStyle Hidden
     $env:VITE_API_TARGET = $ApiTarget
     Push-Location (Join-Path $root 'frontend')
     try { npm run dev } finally { Pop-Location }

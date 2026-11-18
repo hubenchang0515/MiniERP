@@ -107,7 +107,7 @@ describe("user management", () => {
     expect(
       screen.queryByRole("checkbox", { name: /系统管理员/ }),
     ).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText(/用户名/), {
+    fireEvent.change(screen.getByLabelText(/账号/), {
       target: { value: "alice" },
     });
     fireEvent.change(screen.getByLabelText("姓名"), {

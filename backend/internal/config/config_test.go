@@ -44,8 +44,8 @@ func TestAIConfiguration(t *testing.T) {
 		max  int
 	}{
 		{"file", nil, nil, 3 * time.Minute, 16},
-		{"environment", nil, map[string]string{"MINIERP_AI_IDLE_TIMEOUT": "4m", "MINIERP_AI_MAX_CONCURRENT_REQUESTS": "24"}, 4 * time.Minute, 24},
-		{"arguments", []string{"--ai-idle-timeout", "5m", "--ai-max-concurrent-requests", "48"}, map[string]string{"MINIERP_AI_IDLE_TIMEOUT": "invalid", "MINIERP_AI_MAX_CONCURRENT_REQUESTS": "invalid"}, 5 * time.Minute, 48},
+		{"environment", nil, map[string]string{"MINIOA_AI_IDLE_TIMEOUT": "4m", "MINIOA_AI_MAX_CONCURRENT_REQUESTS": "24"}, 4 * time.Minute, 24},
+		{"arguments", []string{"--ai-idle-timeout", "5m", "--ai-max-concurrent-requests", "48"}, map[string]string{"MINIOA_AI_IDLE_TIMEOUT": "invalid", "MINIOA_AI_MAX_CONCURRENT_REQUESTS": "invalid"}, 5 * time.Minute, 48},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			args := append([]string{"-c", path}, test.args...)
@@ -68,7 +68,7 @@ func TestInvalidAIConfiguration(t *testing.T) {
 	}
 	for _, text := range []string{"0", "-1", "bad"} {
 		getenv := func(name string) string {
-			if name == "MINIERP_AI_MAX_CONCURRENT_REQUESTS" {
+			if name == "MINIOA_AI_MAX_CONCURRENT_REQUESTS" {
 				return text
 			}
 			return ""
@@ -88,7 +88,7 @@ func TestInvalidAIConfiguration(t *testing.T) {
 func TestPrecedence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	os.WriteFile(path, []byte("[server]\naddr='127.0.0.1:9000'\n[data]\ndir='./from-file'\n[auth]\njwt_secret='file-secret'\njwt_ttl='2h'"), 0600)
-	env := map[string]string{"MINIERP_CONFIG_FILE": path, "MINIERP_ADDR": "127.0.0.1:9001", "MINIERP_JWT_SECRET": "env-secret", "MINIERP_JWT_TTL": "3h"}
+	env := map[string]string{"MINIOA_CONFIG_FILE": path, "MINIOA_ADDR": "127.0.0.1:9001", "MINIOA_JWT_SECRET": "env-secret", "MINIOA_JWT_TTL": "3h"}
 	get := func(k string) string { return env[k] }
 	var out bytes.Buffer
 	c, err := Load([]string{"--addr", "127.0.0.1:9002", "-t", "4h", "-s", "cli-secret"}, get, &out)

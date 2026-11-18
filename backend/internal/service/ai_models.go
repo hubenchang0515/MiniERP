@@ -6,7 +6,7 @@ import (
 	"errors"
 	"gorm.io/gorm"
 	"io"
-	"minierp/internal/model"
+	"minioa/internal/model"
 	"net/http"
 	"sort"
 	"strconv"

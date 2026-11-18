@@ -13,7 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"minierp/internal/service"
+	"minioa/internal/service"
 )
 
 func TestLatencyDiagnostic(t *testing.T) {

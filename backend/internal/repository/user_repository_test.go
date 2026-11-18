@@ -2,8 +2,8 @@ package repository
 
 import (
 	"gorm.io/gorm"
-	"minierp/internal/model"
-	"minierp/internal/testutil"
+	"minioa/internal/model"
+	"minioa/internal/testutil"
 	"testing"
 )
 

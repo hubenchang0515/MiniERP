@@ -8,10 +8,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import logoSvg from "../assets/logo.svg?raw";
 
 export type ThemeMode = "system" | "light" | "dark";
-export const THEME_KEY = "minierp.theme";
-export const ACCENT_KEY = "minierp.accent";
+export const THEME_KEY = "minioa.theme";
+export const ACCENT_KEY = "minioa.accent";
 export const accentColors = [
   { value: "green", label: "绿色" },
   { value: "blue", label: "蓝色" },
@@ -74,16 +75,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const resolved = mode === "system" ? (systemDark ? "dark" : "light") : mode;
   useLayoutEffect(() => {
-    document.documentElement.dataset.theme = resolved;
-    document.documentElement.style.colorScheme = resolved;
+    const root = document.documentElement;
+    root.dataset.theme = resolved;
+    root.dataset.accent = accent;
+    root.style.colorScheme = resolved;
     document
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute("content", resolved === "dark" ? "#101722" : "#f6f7f9");
-  }, [resolved]);
-
-  useLayoutEffect(() => {
-    document.documentElement.dataset.accent = accent;
-  }, [accent]);
+    const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (icon) {
+      const color = getComputedStyle(root).getPropertyValue("--accent").trim();
+      if (color) {
+        const coloredLogo = logoSvg.replace("<svg ", `<svg style="color:${color}" `);
+        icon.href = `data:image/svg+xml,${encodeURIComponent(coloredLogo)}`;
+      }
+    }
+  }, [resolved, accent]);
 
   const setMode = useCallback((next: ThemeMode) => {
     setModeState(next);

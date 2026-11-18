@@ -62,7 +62,7 @@ export default function UsersPage() {
       <div className="mb-4">
         <SearchField
           label="搜索用户"
-          placeholder="搜索用户名或姓名…"
+          placeholder="搜索账号或姓名…"
           value={q}
           onChange={setQ}
           onSearch={() => {
@@ -85,7 +85,7 @@ export default function UsersPage() {
           <TableHead>
             <tr>
               <TableHeader>成员</TableHeader>
-              <TableHeader>用户名</TableHeader>
+              <TableHeader>账号</TableHeader>
               <TableHeader>角色</TableHeader>
               <TableHeader>状态</TableHeader>
               <TableHeader>创建时间</TableHeader>

@@ -25,7 +25,7 @@ export default function DashboardPage() {
         >
           <dl>
             <div>
-              <dt>用户名</dt>
+              <dt>账号</dt>
               <dd>{u.username}</dd>
             </div>
             {u.displayName && (

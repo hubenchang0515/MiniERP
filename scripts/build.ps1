@@ -47,8 +47,8 @@ try {
         $env:CGO_ENABLED = '0'
         $env:GOPROXY = 'off'
         $env:GOOS = $targetOS; $env:GOARCH = $targetArch
-        $output = Join-Path $root "release/minierp-$targetOS-$targetArch$extension"
-        go build -mod=readonly -trimpath -ldflags '-s -w' -o $output ./cmd/minierp
+        $output = Join-Path $root "release/minioa-$targetOS-$targetArch$extension"
+        go build -mod=readonly -trimpath -ldflags '-s -w' -o $output ./cmd/minioa
         if ($LASTEXITCODE -ne 0) { throw 'Go 构建失败；如缺少依赖，请先运行 .\scripts\install-deps.ps1。' }
         Write-Host "已构建 $output"
     } finally { Pop-Location }

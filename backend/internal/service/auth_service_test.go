@@ -3,9 +3,9 @@ package service
 import (
 	"errors"
 	"github.com/golang-jwt/jwt/v5"
-	"minierp/internal/config"
-	"minierp/internal/model"
-	"minierp/internal/testutil"
+	"minioa/internal/config"
+	"minioa/internal/model"
+	"minioa/internal/testutil"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -17,7 +17,7 @@ func newService(t *testing.T) *Service {
 }
 func bootstrap(t *testing.T, s *Service) Session {
 	t.Helper()
-	v, err := s.Bootstrap(Credentials{Username: "admin", Password: "password123", DisplayName: "管理员"})
+	v, err := s.Bootstrap(Credentials{Username: "admin", Password: "password123"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,6 +67,9 @@ func TestLoginAndTokens(t *testing.T) {
 	}
 	var stored model.User
 	s.DB.First(&stored, session.User.ID)
+	if stored.DisplayName != "系统管理员" {
+		t.Fatalf("unexpected administrator display name: %q", stored.DisplayName)
+	}
 	if stored.PasswordHash == "password123" || stored.PasswordHash == "" {
 		t.Fatal("plaintext password")
 	}
@@ -80,7 +83,7 @@ func TestLoginAndTokens(t *testing.T) {
 	if _, err := s.Authenticate(session.Token + "tampered"); err == nil {
 		t.Fatal("forged token accepted")
 	}
-	expired := claims{stored.TokenVersion, jwt.RegisteredClaims{Issuer: "minierp", Subject: "1", ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour))}}
+	expired := claims{stored.TokenVersion, jwt.RegisteredClaims{Issuer: "minioa", Subject: "1", ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour))}}
 	token, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, expired).SignedString([]byte(s.Config.JWTSecret))
 	_, err := s.Authenticate(token)
 	wantStatus(t, err, 401)

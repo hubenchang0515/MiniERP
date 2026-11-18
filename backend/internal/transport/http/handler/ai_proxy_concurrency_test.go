@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"minierp/internal/service"
+	"minioa/internal/service"
 )
 
 func proxyFixture(t *testing.T, upstreamHandler http.HandlerFunc, configure func(*service.Service), http2 bool) (*http.Client, string, *service.Service) {

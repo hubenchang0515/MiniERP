@@ -2,10 +2,10 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
-	"minierp/internal/service"
-	"minierp/internal/transport/http/handler"
-	"minierp/internal/transport/http/middleware"
-	"minierp/internal/web"
+	"minioa/internal/service"
+	"minioa/internal/transport/http/handler"
+	"minioa/internal/transport/http/middleware"
+	"minioa/internal/web"
 )
 
 func Router(s *service.Service) *gin.Engine {

@@ -2,8 +2,8 @@ package handler_test
 
 import (
 	"encoding/json"
-	"minierp/internal/model"
-	"minierp/internal/service"
+	"minioa/internal/model"
+	"minioa/internal/service"
 	"strconv"
 	"strings"
 	"testing"

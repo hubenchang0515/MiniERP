@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"minierp/internal/service"
+	"minioa/internal/service"
 )
 
 func TestAIProxyTruncatedStreamAbortsDownstream(t *testing.T) {

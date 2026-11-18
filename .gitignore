@@ -10,5 +10,5 @@ data/
 *.db-wal
 .ai-master-key
 config.toml
-backend/dev-minierp*
+backend/dev-minioa*
 *.log

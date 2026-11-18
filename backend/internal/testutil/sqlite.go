@@ -2,7 +2,7 @@ package testutil
 
 import (
 	"gorm.io/gorm"
-	"minierp/internal/database"
+	"minioa/internal/database"
 	"testing"
 )
 

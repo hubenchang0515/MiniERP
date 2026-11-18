@@ -2,8 +2,8 @@ package service
 
 import (
 	"gorm.io/gorm"
-	"minierp/internal/model"
-	"minierp/internal/repository"
+	"minioa/internal/model"
+	"minioa/internal/repository"
 	"strings"
 )
 

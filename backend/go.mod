@@ -1,4 +1,4 @@
-module minierp
+module minioa
 
 go 1.27.0
 

@@ -2,7 +2,6 @@ import { api, type CurrentUser, type Session } from "../../lib/apiClient";
 export type Credentials = {
   username: string;
   password: string;
-  displayName?: string;
 };
 export const authApi = {
   status: () => api<{ initialized: boolean }>("/auth/status"),

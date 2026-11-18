@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"minierp/internal/service"
+	"minioa/internal/service"
 )
 
 func TestSystemResourcesAccess(t *testing.T) {

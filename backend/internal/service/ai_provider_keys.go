@@ -3,7 +3,7 @@ package service
 import (
 	"crypto/rand"
 	"gorm.io/gorm"
-	"minierp/internal/model"
+	"minioa/internal/model"
 	"strings"
 	"sync"
 	"time"

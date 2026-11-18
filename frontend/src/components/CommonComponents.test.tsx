@@ -40,13 +40,13 @@ describe("shared component behavior", () => {
   });
   it("associates field labels, descriptions and errors with the control", () => {
     render(
-      <FormField label="用户名" hint="创建后不可修改" error="用户名已存在">
+      <FormField label="账号" hint="创建后不可修改" error="账号已存在">
         <Input readOnly value="member" />
       </FormField>,
     );
-    const input = screen.getByRole("textbox", { name: "用户名" });
+    const input = screen.getByRole("textbox", { name: "账号" });
     expect(input).toHaveAttribute("readonly");
-    expect(input).toHaveAccessibleDescription("创建后不可修改 用户名已存在");
+    expect(input).toHaveAccessibleDescription("创建后不可修改 账号已存在");
     expect(input).toHaveAttribute("aria-invalid", "true");
   });
   it("reveals a password without losing its field label or value", () => {

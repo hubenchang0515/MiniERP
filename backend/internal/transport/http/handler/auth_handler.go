@@ -2,8 +2,8 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"minierp/internal/model"
-	"minierp/internal/service"
+	"minioa/internal/model"
+	"minioa/internal/service"
 )
 
 func (h *Handler) Status(c *gin.Context) {

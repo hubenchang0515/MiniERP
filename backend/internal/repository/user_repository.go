@@ -2,7 +2,7 @@ package repository
 
 import (
 	"gorm.io/gorm"
-	"minierp/internal/model"
+	"minioa/internal/model"
 )
 
 func User(db *gorm.DB, id uint) (model.User, error) {

@@ -10,7 +10,7 @@ var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]{3,32}$`)
 
 func validateUsername(s string) error {
 	if !usernamePattern.MatchString(s) {
-		return Fail(400, "validation", "用户名须为 3–32 位字母、数字、点、下划线或短横线")
+		return Fail(400, "validation", "账号须为 3–32 位字母、数字、点、下划线或短横线")
 	}
 	return nil
 }

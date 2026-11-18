@@ -2,9 +2,9 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
-	"minierp/internal/model"
-	"minierp/internal/service"
-	"minierp/internal/transport/http/handler"
+	"minioa/internal/model"
+	"minioa/internal/service"
+	"minioa/internal/transport/http/handler"
 	"strings"
 )
 

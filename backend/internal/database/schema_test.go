@@ -1,8 +1,8 @@
 package database_test
 
 import (
-	"minierp/internal/database"
-	"minierp/internal/model"
+	"minioa/internal/database"
+	"minioa/internal/model"
 	"testing"
 )
 

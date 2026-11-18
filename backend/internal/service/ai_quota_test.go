@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"minierp/internal/database"
-	"minierp/internal/model"
+	"minioa/internal/database"
+	"minioa/internal/model"
 )
 
 func TestAIQuotaWeekAccounting(t *testing.T) {

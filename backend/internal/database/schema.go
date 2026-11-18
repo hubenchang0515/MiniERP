@@ -3,7 +3,7 @@ package database
 import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"minierp/internal/model"
+	"minioa/internal/model"
 )
 
 func Migrate(db *gorm.DB) error {

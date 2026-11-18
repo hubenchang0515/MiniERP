@@ -3,8 +3,8 @@ package service
 import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
-	"minierp/internal/model"
-	"minierp/internal/repository"
+	"minioa/internal/model"
+	"minioa/internal/repository"
 )
 
 func rolesFor(tx *gorm.DB, ids []uint) ([]model.Role, error) {
@@ -70,7 +70,7 @@ func (s *Service) UpdateUser(id uint, in UserInput) (model.User, error) {
 			return err
 		}
 		if in.Username != "" && in.Username != before.Username {
-			return Fail(400, "username_immutable", "用户名创建后不可修改")
+			return Fail(400, "username_immutable", "账号创建后不可修改")
 		}
 		result = before
 		result.DisplayName = in.DisplayName

@@ -18,9 +18,11 @@ type AutocompleteProps<T> = {
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
+  maxLength?: number;
   value: T | null;
   onChange: (value: T | null) => void;
-  loadOptions: (query: string, page: number) => Promise<OptionPage<T>>;
+  createOption?: (text: string) => T;
+  loadOptions?: (query: string, page: number) => Promise<OptionPage<T>>;
   getOptionKey: (option: T) => string | number;
   getOptionLabel: (option: T) => string;
   renderOption?: (option: T) => ReactNode;
@@ -32,9 +34,11 @@ export default function Autocomplete<T>({
   label,
   placeholder,
   required,
+  maxLength,
   value,
   onChange,
   disabled,
+  createOption,
   loadOptions,
   getOptionKey,
   getOptionLabel,
@@ -54,15 +58,15 @@ export default function Autocomplete<T>({
   const [activeIndex, setActiveIndex] = useState(-1);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const query = value === null ? text.trim() : "";
+  const query = value === null || createOption ? text.trim() : "";
   const selectedKey = value === null ? null : getOptionKey(value);
-  const expanded = open && !disabled;
+  const expanded = open && !disabled && Boolean(loadOptions);
   const items = suggestions?.items ?? [];
   const loading =
     expanded && !composing && !error && suggestions?.page !== page;
 
   useEffect(() => {
-    if (!expanded || composing) return;
+    if (!expanded || composing || !loadOptions) return;
     let current = true;
     const timer = window.setTimeout(
       () => {
@@ -103,6 +107,7 @@ export default function Autocomplete<T>({
 
   function close() {
     setOpen(false);
+    if (createOption) setText("");
     resetSuggestions();
   }
 
@@ -115,7 +120,8 @@ export default function Autocomplete<T>({
   function edit(next: string) {
     if (next.trim() !== query) resetSuggestions();
     setText(next);
-    if (value !== null) onChange(null);
+    if (createOption) onChange(createOption(next));
+    else if (value !== null) onChange(null);
     setOpen(true);
   }
 
@@ -125,7 +131,10 @@ export default function Autocomplete<T>({
       return;
     }
 
-    if (event.key === "ArrowDown" || (expanded && event.key === "ArrowUp")) {
+    if (
+      loadOptions &&
+      (event.key === "ArrowDown" || (expanded && event.key === "ArrowUp"))
+    ) {
       event.preventDefault();
       setOpen(true);
       if (items.length) {
@@ -141,9 +150,12 @@ export default function Autocomplete<T>({
           ?.scrollIntoView?.({ block: "nearest" });
       }
     } else if (expanded && event.key === "Enter") {
-      event.preventDefault();
-      if (activeIndex >= 0 && activeIndex < items.length)
+      if (activeIndex >= 0 && activeIndex < items.length) {
+        event.preventDefault();
         choose(items[activeIndex]);
+      } else if (!createOption) {
+        event.preventDefault();
+      }
     }
   }
 
@@ -168,7 +180,7 @@ export default function Autocomplete<T>({
         <Input
           id={id}
           role="combobox"
-          aria-autocomplete="list"
+          aria-autocomplete={loadOptions ? "list" : "none"}
           aria-expanded={expanded}
           aria-controls={expanded ? listId : undefined}
           aria-activedescendant={
@@ -179,6 +191,7 @@ export default function Autocomplete<T>({
           autoComplete="off"
           placeholder={placeholder}
           required={required}
+          maxLength={maxLength}
           disabled={disabled}
           value={value === null ? text : getOptionLabel(value)}
           onFocus={() => setOpen(true)}

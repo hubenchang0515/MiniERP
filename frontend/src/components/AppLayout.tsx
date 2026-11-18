@@ -31,7 +31,7 @@ export default function AppLayout() {
           onClick={() => setOpen(false)}
         >
           <Logo />
-          MiniERP
+          MiniOA
         </NavLink>
         <nav
           className="flex flex-col gap-[7px]"
@@ -123,7 +123,7 @@ export default function AppLayout() {
           </button>
           <span className="flex items-center gap-2 font-semibold text-accent">
             <Logo size="sm" />
-            MiniERP
+            MiniOA
           </span>
         </header>
         <main className="mx-auto w-full max-w-[1500px] flex-1 px-8 pt-7 pb-10 max-[900px]:p-6 max-[760px]:px-4 max-[760px]:py-[22px]">

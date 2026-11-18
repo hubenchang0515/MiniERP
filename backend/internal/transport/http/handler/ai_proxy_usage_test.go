@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"minierp/internal/service"
+	"minioa/internal/service"
 )
 
 func TestAIUsageObserverProtocols(t *testing.T) {

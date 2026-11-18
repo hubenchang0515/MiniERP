@@ -1,11 +1,11 @@
-# MiniERP
+# MiniOA
 
 小型企业内部管理系统。前端使用 Vite、React 和 Tailwind CSS；后端使用 Go、Gin、GORM 和 SQLite。发布时，前端文件会先复制到 Go 的嵌入目录，再通过 `go:embed` 编进程序。每个平台分发一个可执行文件；SQLite 数据库是程序运行后生成的独立文件，不会被打进程序。
 
 ## 目录和文件说明
 
 ```text
-MiniERP/
+MiniOA/
 ├── README.md                                      # 本文件：开发、构建、配置和接口说明
 ├── .gitignore                                     # 忽略依赖、数据库、配置和构建产物
 ├── config.example.toml                            # TOML 配置样例；复制为 config.toml 后修改
@@ -55,7 +55,7 @@ MiniERP/
 │   ├── go.mod                                     # Go 模块名、Go 版本和直接依赖
 │   ├── go.sum                                     # Go 依赖校验信息
 │   ├── cmd/                                       # 可执行程序的启动入口
-│   │   └── minierp/                               # MiniERP 服务程序
+│   │   └── minioa/                               # MiniOA 服务程序
 │   │       └── main.go                            # 读取配置、连接数据库并启动 HTTP 服务
 │   └── internal/                                  # 后端内部实现，不供其他 Go 模块直接导入
 │       ├── config/                                # 读取默认值、TOML、环境变量和命令行参数
@@ -83,7 +83,7 @@ MiniERP/
 │       │   ├── role_service_test.go                # 测试角色权限和删除限制
 │       │   ├── dto.go                              # 业务层输入和输出的数据结构
 │       │   ├── errors.go                           # 可转换成 HTTP 错误响应的业务错误
-│       │   └── validation.go                       # 用户名、密码和权限等字段校验
+│       │   └── validation.go                       # 账号、密码和权限等字段校验
 │       ├── transport/                             # 把外部请求接到内部业务逻辑的入口层
 │       │   └── http/                              # 用 HTTP/JSON 提供浏览器调用的接口
 │       │       ├── router.go                      # 将 API 地址、权限检查和处理函数连起来
@@ -179,7 +179,7 @@ MiniERP/
 | `GET /api/ai/quota/usage` | 已登录 | 分页查询本人的请求用量和结算状态 |
 | `GET /api/ai/quota/settings` | 系统管理员 | 查询全局额度管理开关 |
 | `PATCH /api/ai/quota/settings` | 系统管理员 | 通过 `enabled` 启用或停用全局额度管理 |
-| `GET /api/ai/quota/users` | 系统管理员 | 分页查看用户本周额度和历史累计用量，包括未分配的账号。支持按用户名或姓名搜索 |
+| `GET /api/ai/quota/users` | 系统管理员 | 分页查看用户本周额度和历史累计用量，包括未分配的账号。支持按账号或姓名搜索 |
 | `GET /api/ai/quota/users/:id` | 系统管理员 | 查询指定用户的周额度和本周余额 |
 | `PATCH /api/ai/quota/users/:id` | 系统管理员 | 通过 `weeklyPoints` 设置指定用户的常规周额度，立即生效 |
 | `POST /api/ai/quota/users/:id/grants` | 系统管理员 | 通过 `points`、`reason` 向指定用户补发本周积分 |
@@ -188,7 +188,7 @@ MiniERP/
 | `GET /api/users` | `users:read` | 搜索和分页列出用户；支持 `q`、`page`、`pageSize` |
 | `POST /api/users` | `users:manage` | 创建用户 |
 | `GET /api/users/:id` | `users:read` | 查询单个用户 |
-| `PATCH /api/users/:id` | `users:manage` | 修改姓名和角色；用户名创建后不可修改 |
+| `PATCH /api/users/:id` | `users:manage` | 修改姓名和角色；账号创建后不可修改 |
 | `PATCH /api/users/:id/status` | `users:manage` | 启用或停用用户 |
 | `POST /api/users/:id/password-reset` | `users:manage` | 重设用户密码 |
 | `GET /api/roles` | `roles:read` 或 `users:manage` | 分页搜索角色，包含权限和成员数；成员数按当前页批量统计 |
@@ -225,7 +225,7 @@ MiniERP/
 | `ListPanel.tsx` | 用户和角色列表共用容器，统一加载、失败、空数据、表格及分页布局；加载或失败时禁止翻页。请求和列内容仍由页面提供 |
 | `FormActions.tsx` | 用户表单、角色表单、修改密码与弹窗共用操作区，统一按钮排列、间距和窄屏换行 |
 | `ResultState.tsx` | 应用连接失败、403 和 404 共用结果布局，支持图标、标题、说明及操作区 |
-| `Logo.tsx` | 侧栏、移动端页头及登录／初始化页共用项目标识，颜色跟随主题；图形源文件为 `frontend/public/logo.svg`，浏览器标签页也使用此文件 |
+| `Logo.tsx` | 侧栏、移动端页头、登录和初始化页共用项目标识。图形源文件为 `frontend/src/assets/logo.svg`，页面标识和浏览器标签图标都跟随主题色 |
 
 用户、角色、登录、初始化、修改密码及工作台页面已使用以上组件。输入校验、请求、权限判断和业务状态由页面及业务层负责，不放入这些通用界面组件。
 
@@ -257,7 +257,7 @@ AI 资源的子页面使用独立路由。管理员通过顶部导航进入供�
 
 ```bash
 curl http://localhost:8080/ai/v1/chat/completions \
-  -H "Authorization: Bearer $MINIERP_AI_KEY" \
+  -H "Authorization: Bearer $MINIOA_AI_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model":"chat-default","messages":[{"role":"user","content":"你好"}],"stream":true}'
 ```
@@ -286,15 +286,15 @@ curl http://localhost:8080/ai/v1/chat/completions \
 
 | 配置项 | 命令行参数 | 环境变量 | TOML 字段 | 默认值 |
 |---|---|---|---|---|
-| 配置文件路径 | `-c`、`--config` | `MINIERP_CONFIG_FILE` | 无 | `./config.toml`；文件可不存在 |
-| HTTP 监听地址 | `-a`、`--addr` | `MINIERP_ADDR` | `server.addr` | `0.0.0.0:8080` |
-| 数据目录 | `-d`、`--data-dir` | `MINIERP_DATA_DIR` | `data.dir` | `./data`；数据库文件为其中的 `mini-erp.db` |
-| JWT 密钥 | `-s`、`--jwt-secret` | `MINIERP_JWT_SECRET` | `auth.jwt_secret` | `minierp-insecure-default-secret-change-me` |
-| JWT 有效期 | `-t`、`--jwt-ttl` | `MINIERP_JWT_TTL` | `auth.jwt_ttl` | `168h`（7 天） |
-| AI 无数据超时 | `--ai-idle-timeout` | `MINIERP_AI_IDLE_TIMEOUT` | `ai.idle_timeout` | `2m`；持续输出不会因总时长被中断 |
-| AI 并发上限 | `--ai-max-concurrent-requests` | `MINIERP_AI_MAX_CONCURRENT_REQUESTS` | `ai.max_concurrent_requests` | `32`；超限返回 429 |
+| 配置文件路径 | `-c`、`--config` | `MINIOA_CONFIG_FILE` | 无 | `./config.toml`；文件可不存在 |
+| HTTP 监听地址 | `-a`、`--addr` | `MINIOA_ADDR` | `server.addr` | `0.0.0.0:8080` |
+| 数据目录 | `-d`、`--data-dir` | `MINIOA_DATA_DIR` | `data.dir` | `./data`；数据库文件为其中的 `mini-oa.db` |
+| JWT 密钥 | `-s`、`--jwt-secret` | `MINIOA_JWT_SECRET` | `auth.jwt_secret` | `minioa-insecure-default-secret-change-me` |
+| JWT 有效期 | `-t`、`--jwt-ttl` | `MINIOA_JWT_TTL` | `auth.jwt_ttl` | `168h`（7 天） |
+| AI 无数据超时 | `--ai-idle-timeout` | `MINIOA_AI_IDLE_TIMEOUT` | `ai.idle_timeout` | `2m`；持续输出不会因总时长被中断 |
+| AI 并发上限 | `--ai-max-concurrent-requests` | `MINIOA_AI_MAX_CONCURRENT_REQUESTS` | `ai.max_concurrent_requests` | `32`；超限返回 429 |
 
-运行 `minierp --help` 可查看短参数和长参数。未设置 `MINIERP_JWT_SECRET` 时，每次启动都会打印警告和实际密钥来源，但不会打印密钥本身；正式部署建议设置该环境变量。命令行参数可能出现在系统进程列表里，因此密钥最好从环境变量提供。
+运行 `minioa --help` 可查看短参数和长参数。未设置 `MINIOA_JWT_SECRET` 时，每次启动都会打印警告和实际密钥来源，但不会打印密钥本身；正式部署建议设置该环境变量。命令行参数可能出现在系统进程列表里，因此密钥最好从环境变量提供。
 
 `config.example.toml` 展示了地址、数据目录和 Token 有效期的写法。把它复制为 `config.toml` 后再编辑；真实配置文件已加入 `.gitignore`。例如：
 
@@ -318,7 +318,7 @@ Vite 开发服务器默认监听 `5173`，并把 `/api` 转发给 `http://127.0.
 
 ## 数据库、测试和构建
 
-当前处于早期开发阶段，仅使用 GORM `AutoMigrate` 从空库建立当前表结构，并初始化权限清单，不提供旧数据迁移或兼容逻辑。表结构发生不兼容变化后，请先停止程序，删除数据目录中的 `mini-erp.db`（以及同名的 `-wal`、`-shm` 文件，如存在），再重启并重新初始化管理员账号。
+当前处于早期开发阶段，仅使用 GORM `AutoMigrate` 从空库建立当前表结构，并初始化权限清单，不提供旧数据迁移或兼容逻辑。表结构发生不兼容变化后，请先停止程序，删除数据目录中的 `mini-oa.db`（以及同名的 `-wal`、`-shm` 文件，如存在），再重启并重新初始化管理员账号。
 
 数据库采用 WAL 模式，并分离读写连接：写连接保持单连接串行提交，API 查询使用最多 8 个独立的只读连接，避免统计更新或账号修改阻塞其他页面读取。JWT 和用户访问密钥的权限检查均合并为一条关联查询，每次请求直接读取已提交数据，不缓存权限，因此停用账号、撤回角色权限和撤销密钥仍立即生效。超过 200ms 的 SQL 会记录警告，日志只包含参数占位符，不输出密钥、密码等参数值。
 
@@ -364,17 +364,17 @@ Linux/macOS 通过 `./scripts/build.sh --target linux/amd64` 指定目标；不�
 构建完成后，在项目根目录运行 Windows 版本：
 
 ```powershell
-.\release\minierp-windows-amd64.exe
+.\release\minioa-windows-amd64.exe
 ```
 
-访问 `http://localhost:8080`，首次进入会引导创建管理员。Linux 运行 `./release/minierp-linux-amd64`；macOS 按芯片选择 `minierp-darwin-amd64` 或 `minierp-darwin-arm64`。如果脚本或程序没有执行权限，先用 `chmod +x` 设置，或通过 `bash ./scripts/build.sh` 执行构建脚本。
+访问 `http://localhost:8080`，首次进入会引导创建管理员。Linux 运行 `./release/minioa-linux-amd64`；macOS 按芯片选择 `minioa-darwin-amd64` 或 `minioa-darwin-arm64`。如果脚本或程序没有执行权限，先用 `chmod +x` 设置，或通过 `bash ./scripts/build.sh` 执行构建脚本。
 
-分发时只需复制对应平台的可执行文件；不需要附带 `frontend/dist/` 或 `static/`。运行时会在当前目录下创建 `data/mini-erp.db`，可用 `--data-dir` 指定其他数据目录。真实配置和已有数据请在更新程序时保留。
+分发时只需复制对应平台的可执行文件；不需要附带 `frontend/dist/` 或 `static/`。运行时会在当前目录下创建 `data/mini-oa.db`，可用 `--data-dir` 指定其他数据目录。真实配置和已有数据请在更新程序时保留。
 
 测试覆盖：配置默认值、错误输入和覆盖顺序；AutoMigrate 和数据库读写；并发初始化、密码哈希、Token 失效、权限合并、最后管理员保护和角色删除限制；HTTP 参数、响应状态和权限校验；前端初始化、登录、页面权限及表单。
 
 ## 首次运行和安全说明
 
-首次启动后访问程序地址，页面会引导创建首位系统管理员。此后只有有相应权限的用户才能创建用户和角色。数据库会保存在配置的数据目录中；备份时需要备份这个目录，升级或替换可执行文件不会自动迁移或删除它。
+首次启动后访问程序地址，填写账号和密码即可创建首位系统管理员。默认姓名为「系统管理员」，之后可在用户管理中修改。此后只有有相应权限的用户才能创建用户和角色。数据库会保存在配置的数据目录中；备份时需要备份这个目录，升级或替换可执行文件不会自动迁移或删除它。
 
-固定 JWT 默认密钥可从源码或程序中提取，掌握它的人可能伪造 Token。正式部署时应通过 `MINIERP_JWT_SECRET` 设置随机密钥。JWT 默认有效期为 7 天，浏览器凭证保存在 `localStorage`；密码重设或停用账号会让该账号已有 Token 失效。
+固定 JWT 默认密钥可从源码或程序中提取，掌握它的人可能伪造 Token。正式部署时应通过 `MINIOA_JWT_SECRET` 设置随机密钥。JWT 默认有效期为 7 天，浏览器凭证保存在 `localStorage`；密码重设或停用账号会让该账号已有 Token 失效。

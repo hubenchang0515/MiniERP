@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"minierp/internal/model"
-	"minierp/internal/service"
+	"minioa/internal/model"
+	"minioa/internal/service"
 )
 
 func TestAIWeeklyQuotaProxyAndPermissions(t *testing.T) {

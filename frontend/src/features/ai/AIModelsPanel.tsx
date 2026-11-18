@@ -1,6 +1,7 @@
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
 import { aiApi, type ModelMapping } from "./api";
 import ResourceChoice, { type ResourceOption } from "./ResourceChoice";
+import Autocomplete from "../../components/Autocomplete";
 import Button from "../../components/Button";
 import Badge from "../../components/Badge";
 import ListToolbar from "../../components/ListToolbar";
@@ -26,7 +27,6 @@ function MappingDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const listId = useId();
   const streamUsageHintId = useId();
   const [internalId, setInternalId] = useState(mapping?.internalId ?? "");
   const [externalId, setExternalId] = useState(mapping?.externalId ?? "");
@@ -57,6 +57,18 @@ function MappingDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fetchError, setFetchError] = useState("");
+  const loadModelOptions = useCallback(
+    async (query: string) => {
+      const search = query.toLowerCase();
+      return {
+        items: (suggestions ?? []).filter((id) =>
+          id.toLowerCase().includes(search),
+        ),
+        hasMore: false,
+      };
+    },
+    [suggestions],
+  );
   async function fetchModels() {
     if (!resource || busy || fetching) return;
     setFetching(true);
@@ -146,21 +158,19 @@ function MappingDialog({
               : "上游模型列表为空，可手动填写外部模型 ID。"}
           </p>
         )}
-        <datalist id={listId}>
-          {suggestions?.map((id) => (
-            <option key={id} value={id} />
-          ))}
-        </datalist>
-        <FormField label="外部模型 ID" required>
-          <Input
-            required
-            maxLength={256}
-            disabled={busy}
-            value={externalId}
-            list={suggestions?.length ? listId : undefined}
-            onChange={(e) => setExternalId(e.target.value)}
-          />
-        </FormField>
+        <Autocomplete
+          label="外部模型 ID"
+          required
+          maxLength={256}
+          disabled={busy}
+          value={externalId}
+          onChange={(id) => setExternalId(id ?? "")}
+          createOption={(text) => text}
+          loadOptions={suggestions?.length ? loadModelOptions : undefined}
+          getOptionKey={(id) => id}
+          getOptionLabel={(id) => id}
+          emptyMessage="没有匹配的上游模型，可手动填写"
+        />
         <label className="flex items-center gap-2 text-[13px]">
           <input
             type="checkbox"

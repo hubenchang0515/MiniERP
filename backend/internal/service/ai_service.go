@@ -9,8 +9,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"gorm.io/gorm"
-	"minierp/internal/model"
-	"minierp/internal/repository"
+	"minioa/internal/model"
+	"minioa/internal/repository"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -119,7 +119,7 @@ func newAISecret() (string, string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", "", err
 	}
-	raw := "mierp_" + base64.RawURLEncoding.EncodeToString(b)
+	raw := "mioa_" + base64.RawURLEncoding.EncodeToString(b)
 	return raw, hashAISecret(raw), nil
 }
 func hashAISecret(raw string) string {
@@ -214,7 +214,7 @@ func (s *Service) ChangeAIKey(id, owner uint, rotate bool) (string, error) {
 }
 func (s *Service) ResolveAIKey(raw string) (model.AIKey, error) {
 	var k model.AIKey
-	if !strings.HasPrefix(raw, "mierp_") || len(raw) > 128 {
+	if !strings.HasPrefix(raw, "mioa_") || len(raw) > 128 {
 		return k, Fail(401, "invalid_key", "密钥无效或已撤销")
 	}
 	var err error

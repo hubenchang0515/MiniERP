@@ -5,9 +5,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
-	"minierp/internal/config"
-	"minierp/internal/model"
-	"minierp/internal/repository"
+	"minioa/internal/config"
+	"minioa/internal/model"
+	"minioa/internal/repository"
 	"strconv"
 	"time"
 )
@@ -45,9 +45,6 @@ func (s *Service) Bootstrap(in Credentials) (Session, error) {
 	if err := validatePassword(in.Password); err != nil {
 		return Session{}, err
 	}
-	if err := validateDisplay(in.DisplayName); err != nil {
-		return Session{}, err
-	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return Session{}, err
@@ -65,7 +62,7 @@ func (s *Service) Bootstrap(in Credentials) (Session, error) {
 		if err := repository.SaveRole(tx, &r); err != nil {
 			return err
 		}
-		u = model.User{Username: in.Username, DisplayName: in.DisplayName, PasswordHash: string(hash), Enabled: true, TokenVersion: 1, Roles: []model.Role{r}}
+		u = model.User{Username: in.Username, DisplayName: r.Name, PasswordHash: string(hash), Enabled: true, TokenVersion: 1, Roles: []model.Role{r}}
 		return repository.SaveUser(tx, &u)
 	})
 	if err != nil {
@@ -117,13 +114,13 @@ func (s *Service) ChangePassword(id uint, in ChangePasswordInput) error {
 }
 func (s *Service) session(u model.User) (Session, error) {
 	now := time.Now()
-	c := claims{u.TokenVersion, jwt.RegisteredClaims{Subject: strconv.FormatUint(uint64(u.ID), 10), Issuer: "minierp", IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(s.Config.JWTTTL))}}
+	c := claims{u.TokenVersion, jwt.RegisteredClaims{Subject: strconv.FormatUint(uint64(u.ID), 10), Issuer: "minioa", IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(s.Config.JWTTTL))}}
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString([]byte(s.Config.JWTSecret))
 	return Session{token, Effective(u)}, err
 }
 func (s *Service) Authenticate(raw string) (model.User, error) {
 	c := &claims{}
-	token, err := jwt.ParseWithClaims(raw, c, func(t *jwt.Token) (any, error) { return []byte(s.Config.JWTSecret), nil }, jwt.WithValidMethods([]string{"HS256"}), jwt.WithIssuer("minierp"), jwt.WithExpirationRequired())
+	token, err := jwt.ParseWithClaims(raw, c, func(t *jwt.Token) (any, error) { return []byte(s.Config.JWTSecret), nil }, jwt.WithValidMethods([]string{"HS256"}), jwt.WithIssuer("minioa"), jwt.WithExpirationRequired())
 	invalid := Fail(401, "unauthorized", "登录已失效，请重新登录")
 	if err != nil || !token.Valid {
 		return model.User{}, invalid

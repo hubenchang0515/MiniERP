@@ -1,7 +1,7 @@
 package service
 
 import (
-	"minierp/internal/repository"
+	"minioa/internal/repository"
 	"testing"
 )
 

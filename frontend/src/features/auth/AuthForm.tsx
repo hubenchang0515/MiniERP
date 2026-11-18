@@ -18,7 +18,6 @@ export default function AuthForm({ setup = false }: { setup?: boolean }) {
     [params] = useSearchParams();
   const [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
-    [displayName, setDisplayName] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
@@ -29,11 +28,6 @@ export default function AuthForm({ setup = false }: { setup?: boolean }) {
       const user = await (setup ? a.setup : a.login)({
         username,
         password,
-        ...(setup
-          ? {
-              displayName,
-            }
-          : {}),
       });
       navigate(
         authorizedReturnTo(
@@ -63,14 +57,14 @@ export default function AuthForm({ setup = false }: { setup?: boolean }) {
       <main className="w-full max-w-[380px]">
         <div className="mb-5 flex items-center justify-center gap-3 text-[22px] font-bold tracking-[-0.6px] text-accent">
           <Logo size="lg" />
-          MiniERP
+          MiniOA
         </div>
         <Card
           padding="auth"
           className="w-full [&>h1]:mb-2 [&>p]:text-[12px] [&_form]:mt-6 [&_form]:grid [&_form]:gap-[21px]"
         >
           <h1 className="text-[24px] leading-[1.5] font-semibold tracking-[-0.8px]">
-            {setup ? "创建管理员" : "登录 MiniERP"}
+            {setup ? "创建管理员" : "登录 MiniOA"}
           </h1>
           {setup && (
             <p className="text-muted">首次使用，请创建系统管理员账号。</p>
@@ -80,18 +74,7 @@ export default function AuthForm({ setup = false }: { setup?: boolean }) {
               <Alert tone="success">密码已修改，请使用新密码登录。</Alert>
             )}
             <ErrorBox message={error} />
-            {setup && (
-              <FormField label="姓名">
-                <Input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  maxLength={64}
-                  autoComplete="name"
-                  placeholder="如何称呼您（选填）"
-                />
-              </FormField>
-            )}
-            <FormField label="用户名">
+            <FormField label="账号">
               <Input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -100,7 +83,7 @@ export default function AuthForm({ setup = false }: { setup?: boolean }) {
                 maxLength={32}
                 pattern={setup ? "[a-zA-Z0-9_.-]{3,32}" : undefined}
                 autoComplete="username"
-                placeholder="请输入用户名"
+                placeholder="请输入账号"
               />
             </FormField>
             <FormField label="密码">
@@ -116,7 +99,7 @@ export default function AuthForm({ setup = false }: { setup?: boolean }) {
             </FormField>
             {setup && (
               <p className="text-[12px] leading-[1.8] text-muted">
-                用户名为 3–32 位字母、数字、点、下划线或短横线。密码最多 72
+                账号为 3–32 位字母、数字、点、下划线或短横线。密码最多 72
                 字节。
               </p>
             )}

@@ -2,9 +2,9 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"minierp/internal/model"
-	"minierp/internal/repository"
-	"minierp/internal/service"
+	"minioa/internal/model"
+	"minioa/internal/repository"
+	"minioa/internal/service"
 )
 
 func (h *Handler) Permissions(c *gin.Context) { c.JSON(200, model.Permissions) }

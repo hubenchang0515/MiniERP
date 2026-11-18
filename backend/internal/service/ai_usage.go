@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
-	"minierp/internal/model"
+	"minioa/internal/model"
 )
 
 type usageID struct {

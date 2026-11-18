@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
-	"minierp/internal/service"
+	"minioa/internal/service"
 )
 
 func TestReadAPIsAndProxyProceedDuringWriteTransaction(t *testing.T) {

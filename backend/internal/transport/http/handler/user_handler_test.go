@@ -1,7 +1,7 @@
 package handler_test
 
 import (
-	"minierp/internal/service"
+	"minioa/internal/service"
 	"testing"
 )
 

@@ -135,11 +135,11 @@ export default function UserFormPage() {
               <FormSection title="基本资料">
                 <div className="mt-5 grid gap-[21px]">
                   <FormField
-                    label="用户名"
+                    label="账号"
                     required
                     hint={
                       editing
-                        ? "用户名创建后不可修改"
+                        ? "账号创建后不可修改"
                         : "3–32 位字母、数字、点、下划线或短横线"
                     }
                   >

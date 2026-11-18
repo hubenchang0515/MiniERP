@@ -2,7 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"minierp/internal/service"
+	"minioa/internal/service"
 	"strconv"
 )
 

@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"io"
 	"log"
-	"minierp/internal/service"
+	"minioa/internal/service"
 	"net/http"
 	"strconv"
 	"time"

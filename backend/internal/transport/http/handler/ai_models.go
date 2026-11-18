@@ -3,8 +3,8 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"minierp/internal/model"
-	"minierp/internal/service"
+	"minioa/internal/model"
+	"minioa/internal/service"
 )
 
 func availableAIModels(s *service.Service) *gorm.DB {

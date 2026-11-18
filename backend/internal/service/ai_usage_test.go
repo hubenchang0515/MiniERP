@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"minierp/internal/model"
+	"minioa/internal/model"
 )
 
 func TestUsageBufferDoesNotWaitForWriterAndDrains(t *testing.T) {

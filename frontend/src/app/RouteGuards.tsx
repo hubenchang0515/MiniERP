@@ -14,9 +14,9 @@ export function safeReturnTo(value: string | null) {
   )
     return "/dashboard";
   try {
-    const u = new URL(value, "https://minierp.local");
+    const u = new URL(value, "https://minioa.local");
     if (
-      u.origin !== "https://minierp.local" ||
+      u.origin !== "https://minioa.local" ||
       /^\/(login|setup)(\/|$)/i.test(decodeURIComponent(u.pathname))
     )
       return "/dashboard";
@@ -42,7 +42,7 @@ export function authorizedReturnTo(
   const target = safeReturnTo(value);
   const path =
     decodeURIComponent(
-      new URL(target, "https://minierp.local").pathname,
+      new URL(target, "https://minioa.local").pathname,
     ).replace(/\/+$/, "") || "/";
   if (
     ["/", "/dashboard", "/account/password", "/ai", aiMyResourcesPath].includes(

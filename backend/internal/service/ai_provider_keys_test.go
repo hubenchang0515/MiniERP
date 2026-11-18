@@ -1,7 +1,7 @@
 package service
 
 import (
-	"minierp/internal/model"
+	"minioa/internal/model"
 	"net/http"
 	"sync"
 	"testing"

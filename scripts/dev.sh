@@ -9,12 +9,12 @@ fi
 npm run build
 cp -R dist/. "$root/backend/internal/web/static/"
 cd "$root/backend"
-if ! GOPROXY=off go build -mod=readonly -o dev-minierp ./cmd/minierp; then
+if ! GOPROXY=off go build -mod=readonly -o dev-minioa ./cmd/minioa; then
   echo "后端构建失败；如缺少依赖，请先运行 ./scripts/install-deps.sh。" >&2
   exit 1
 fi
 cd "$root"
-./backend/dev-minierp &
+./backend/dev-minioa &
 backend_pid=$!
 frontend_pid=''
 cleanup() { kill "$backend_pid" 2>/dev/null || true; if [ -n "$frontend_pid" ]; then kill "$frontend_pid" 2>/dev/null || true; fi; }

@@ -3,9 +3,9 @@
   let mode = "system";
   let accent = "green";
   try {
-    const saved = localStorage.getItem("minierp.theme");
+    const saved = localStorage.getItem("minioa.theme");
     if (saved === "light" || saved === "dark") mode = saved;
-    const savedAccent = localStorage.getItem("minierp.accent");
+    const savedAccent = localStorage.getItem("minioa.accent");
     if (["green", "blue", "purple", "orange", "rose"].includes(savedAccent))
       accent = savedAccent;
   } catch {}

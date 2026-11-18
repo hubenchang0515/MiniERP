@@ -1,4 +1,4 @@
-const key = "minierp.token";
+const key = "minioa.token";
 export const authStorage = {
   get: () => localStorage.getItem(key),
   set: (token: string) => localStorage.setItem(key, token),

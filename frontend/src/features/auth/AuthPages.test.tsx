@@ -27,7 +27,7 @@ describe("authentication pages", () => {
   it("submits login and restores target", async () => {
     auth.login.mockResolvedValue({ permissions: ["users:read"] });
     mount();
-    fireEvent.change(screen.getByLabelText("用户名"), {
+    fireEvent.change(screen.getByLabelText("账号"), {
       target: { value: "admin" },
     });
     fireEvent.change(screen.getByLabelText("密码"), {
@@ -43,7 +43,7 @@ describe("authentication pages", () => {
   it("shows server login errors", async () => {
     auth.login.mockRejectedValue(new Error("账号或密码错误"));
     mount();
-    fireEvent.change(screen.getByLabelText("用户名"), {
+    fireEvent.change(screen.getByLabelText("账号"), {
       target: { value: "admin" },
     });
     fireEvent.change(screen.getByLabelText("密码"), {
@@ -57,10 +57,8 @@ describe("authentication pages", () => {
   it("creates the first administrator", async () => {
     auth.setup.mockResolvedValue({ permissions: ["users:read"] });
     mount(true);
-    fireEvent.change(screen.getByLabelText("姓名"), {
-      target: { value: "管理员" },
-    });
-    fireEvent.change(screen.getByLabelText("用户名"), {
+    expect(screen.queryByLabelText("姓名")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("账号"), {
       target: { value: "admin" },
     });
     fireEvent.change(screen.getByLabelText("密码"), {
@@ -73,14 +71,13 @@ describe("authentication pages", () => {
       expect(auth.setup).toHaveBeenCalledWith({
         username: "admin",
         password: "password123",
-        displayName: "管理员",
       }),
     );
   });
   it("sends a user without permissions to the dashboard instead of a forbidden return target", async () => {
     auth.login.mockResolvedValue({ permissions: [] });
     mount();
-    fireEvent.change(screen.getByLabelText("用户名"), {
+    fireEvent.change(screen.getByLabelText("账号"), {
       target: { value: "member" },
     });
     fireEvent.change(screen.getByLabelText("密码"), {

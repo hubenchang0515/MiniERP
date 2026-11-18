@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"minierp/internal/model"
-	"minierp/internal/service"
+	"minioa/internal/model"
+	"minioa/internal/service"
 )
 
 func TestAIKeyLimitWithConcurrentCreation(t *testing.T) {

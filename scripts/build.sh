@@ -46,8 +46,8 @@ find "$static" -mindepth 1 -maxdepth 1 ! -name .keep ! -name placeholder.html -e
 cp -R dist/. "$static/"
 mkdir -p "$root/release"
 cd "$root/backend"
-if ! GOPROXY=off CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -mod=readonly -trimpath -ldflags '-s -w' -o "$root/release/minierp-$os-$arch$ext" ./cmd/minierp; then
+if ! GOPROXY=off CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -mod=readonly -trimpath -ldflags '-s -w' -o "$root/release/minioa-$os-$arch$ext" ./cmd/minioa; then
   echo "Go 构建失败；如缺少依赖，请先运行 ./scripts/install-deps.sh。" >&2
   exit 1
 fi
-echo "已构建 minierp-$os-$arch$ext"
+echo "已构建 minioa-$os-$arch$ext"

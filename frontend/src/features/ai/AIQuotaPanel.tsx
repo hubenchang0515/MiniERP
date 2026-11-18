@@ -433,7 +433,7 @@ export function AIQuotaAllocationPanel() {
       </Card>
       <ListToolbar
         label="搜索用户"
-        placeholder="搜索用户名或姓名…"
+        placeholder="搜索账号或姓名…"
         value={text}
         onChange={setText}
         onSearch={() => {

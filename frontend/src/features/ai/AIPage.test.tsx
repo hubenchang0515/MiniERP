@@ -223,7 +223,7 @@ describe("AI resources and keys", () => {
   );
   it("generates a key for the current account without a user selector", async () => {
     vi.mocked(aiApi.createKey).mockResolvedValue({
-      secret: "mierp_test_one_time_secret",
+      secret: "mioa_test_one_time_secret",
     });
     vi.mocked(aiApi.keys).mockResolvedValue({
       items: [],
@@ -249,7 +249,7 @@ describe("AI resources and keys", () => {
     expect(aiApi.resourceOptions).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     expect(await screen.findByLabelText("新生成的密钥")).toHaveValue(
-      "mierp_test_one_time_secret",
+      "mioa_test_one_time_secret",
     );
     expect(aiApi.createKey).toHaveBeenCalledWith({
       name: "new key",
@@ -260,7 +260,7 @@ describe("AI resources and keys", () => {
   it("lets an AI-authorized user rotate only their own keys", async () => {
     auth.user.roles = [{ system: false }];
     auth.user.id = 2;
-    vi.mocked(aiApi.rotate).mockResolvedValue({ secret: "mierp_rotated" });
+    vi.mocked(aiApi.rotate).mockResolvedValue({ secret: "mioa_rotated" });
     renderAI();
     await screen.findByText("工作 KEY");
     expect(aiApi.keys).toHaveBeenCalledWith(false, 1, "");
@@ -271,7 +271,7 @@ describe("AI resources and keys", () => {
     fireEvent.click(screen.getByRole("button", { name: "重新生成" }));
     fireEvent.click(screen.getByRole("button", { name: "确认操作" }));
     expect(await screen.findByLabelText("新生成的密钥")).toHaveValue(
-      "mierp_rotated",
+      "mioa_rotated",
     );
     expect(aiApi.rotate).toHaveBeenCalledWith(1);
   });
@@ -388,12 +388,20 @@ describe("AI resources and keys", () => {
     await screen.findByText(/已获取 1 个模型/);
     expect(aiApi.upstreamModels).toHaveBeenCalledWith({ resourceId: 1 });
     expect(screen.queryByLabelText("外部 API KEY")).not.toBeInTheDocument();
+    const externalModel = screen.getByRole("combobox", { name: "外部模型 ID" });
+    expect(externalModel).toHaveAttribute("autocomplete", "off");
+    expect(externalModel).not.toHaveAttribute("list");
+    fireEvent.click(externalModel);
+    fireEvent.click(await screen.findByRole("option", { name: "provider-new" }));
+    expect(externalModel).toHaveValue("provider-new");
     fireEvent.change(supplier, {
       target: { value: "第二" },
     });
     expect(screen.queryByText(/已获取 1 个模型/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "获取上游模型" })).toBeDisabled();
-    fireEvent.change(screen.getByRole("textbox", { name: "外部模型 ID" }), {
+    fireEvent.click(externalModel);
+    expect(screen.queryByRole("option", { name: "provider-new" })).toBeNull();
+    fireEvent.change(externalModel, {
       target: { value: "second-model" },
     });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
@@ -454,7 +462,7 @@ describe("AI resources and keys", () => {
     fireEvent.click(screen.getByRole("button", { name: "获取上游模型" }));
     await screen.findByText("上游不支持模型列表");
     expect(
-      screen.getByRole("textbox", { name: "外部模型 ID" }),
+      screen.getByRole("combobox", { name: "外部模型 ID" }),
     ).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "保存" })).not.toBeDisabled();
   });

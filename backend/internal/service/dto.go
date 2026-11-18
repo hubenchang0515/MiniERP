@@ -1,11 +1,10 @@
 package service
 
-import "minierp/internal/model"
+import "minioa/internal/model"
 
 type Credentials struct {
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	DisplayName string `json:"displayName"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 type ChangePasswordInput struct {
 	CurrentPassword string `json:"currentPassword"`
